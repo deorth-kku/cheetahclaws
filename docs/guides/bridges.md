@@ -95,26 +95,34 @@ Send a voice note (OGG) or audio file (MP3). CheetahClaws transcribes it automat
 >
 > If `ffmpeg` is missing, voice messages will fail with `⚠ Could not download voice message.`
 
-### Permission prompts (clickable buttons) (#84)
+### Permission prompts (clickable buttons & numbered menus) (#84)
 
-When the model wants to run a write/edit/Bash tool and `permission_mode` isn't `accept-all`, cheetahclaws asks for approval. On Telegram the prompt now arrives as a real `inline_keyboard` with three tappable buttons:
+When the model wants to run a write/edit/Bash tool and `permission_mode` isn't `accept-all`, cheetahclaws asks for approval. The prompt is now rendered with an interactive picker on **every** channel — pick the form that fits the medium:
+
+| Channel | UX |
+|---|---|
+| **Telegram** | Real `inline_keyboard` with `✅ Approve` / `❌ Reject` / `✅✅ Accept all` buttons. Tap → ack via `answerCallbackQuery` (spinner clears), original message edited to append `✓ Selected: y` for scroll-back, agent thread resumes. Stale-click protection via per-prompt `prompt_id` baked into `callback_data`. |
+| **Slack** | Numbered menu rendered into the message body. Reply with the digit (`1`/`2`/`3`), the canonical letter (`y`/`n`/`a`), or a label word (`approve` / `reject` / `accept` / `all`) — all three resolve to the same value before the caller sees them. |
+| **WeChat** | Same numbered-menu UX as Slack. Header is `❓ 需要输入`; reply with digit / letter / label word, all resolved server-side. |
+| **Terminal** | Numbered menu printed above the input cursor; same digit / letter / label-word reply normalization. |
+| **Web (chat API)** | Existing browser approval UI handles this — untouched. |
+
+The reply normalization is shared: `_resolve_choice("1", value_map) == "y"`, `_resolve_choice("approve", value_map) == "y"`, `_resolve_choice("custom answer", value_map) == "custom answer"` (unknown replies pass through verbatim, so callers that combine `options=` with free-text questions still work).
 
 ```
 ❓ Input Required
 Allow: Bash 'rm -rf /tmp/scratch'  [y/N/a(ccept-all)]
 
-   ✅ Approve
-   ❌ Reject
-   ✅✅ Accept all
+  [1] ✅ Approve  (reply `1` or `y`)
+  [2] ❌ Reject  (reply `2` or `n`)
+  [3] ✅✅ Accept all  (reply `3` or `a`)
 ```
 
-Tap any button — the bot acknowledges via `answerCallbackQuery` (so the spinner clears), edits the original message to append `✓ Selected: y` (or `n` / `a`) so the choice is visible in scroll-back, and the agent thread blocked in `ask_input_interactive` resumes immediately. `✅✅ Accept all` flips `permission_mode` to `accept-all` for the rest of the session, just like typing `a` in the terminal.
+`✅✅ Accept all` flips `permission_mode` to `accept-all` for the rest of the session, identical to typing `a` in the terminal.
 
-> **Stale-click protection.** Each prompt embeds a fresh 8-char `prompt_id` in the buttons' `callback_data` (`cc:<prompt_id>:<value>`). A click on an older prompt's leftover buttons is silently dropped, so two rapid permission requests can't bleed into each other.
+> **Telegram fallbacks.** If Markdown parsing fails for the prompt body, the bridge retries the same keyboard without `parse_mode`. If even that fails, it falls back to plain text without buttons — the embedded numbered menu in the message body remains, so users can still reply by typing `1` / `y` / `approve`. Same `(timeout: no input received)` after 5 minutes for any channel.
 
-> **Fallbacks.** If Markdown parsing fails for the prompt body, the bridge retries the same keyboard without `parse_mode`. If even that fails, it falls back to plain text without buttons — the prompt still includes `[y/N/a(ccept-all)]` so users can reply by typing the letter, just like before. Same `(timeout: no input received)` after 5 minutes.
-
-> **Other bridges.** Slack, WeChat, and the terminal still use the text path with `[y/N/a(ccept-all)]` — they ignore the `options=` parameter passed by the agent. No regressions; the change is additive.
+> **For caller code.** Pass `options=[(label, return_value), …]` to `ask_input_interactive` to opt in. Without `options`, every existing call site keeps free-text behavior — the helper is purely additive.
 
 ### File support (#84)
 

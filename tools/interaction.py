@@ -37,6 +37,72 @@ def _is_in_web_turn(config: dict) -> bool:
     return bool(getattr(runtime.get_ctx(config), 'in_web_turn', False))
 
 
+# ── options=… helpers (shared menu rendering + reply resolution) ─────────
+
+def _strip_emojis_punct(s: str) -> str:
+    """Reduce a label token to lowercase ASCII letters/digits for matching."""
+    import re as _re
+    return _re.sub(r'[^a-z0-9]+', '', s.lower())
+
+
+def _format_menu_block(options) -> str:
+    """Render an `options` list as a numbered menu suffix.
+
+    Each row reads ``  [N] <label>  (reply N or <value>)`` so users on
+    text-only bridges (Slack / WeChat / terminal fallback) know they can
+    tap-or-type either the digit, the canonical value, or a leading word
+    of the label.
+    """
+    if not options:
+        return ""
+    lines: list[str] = []
+    for i, (label, value) in enumerate(options, 1):
+        lines.append(f"  [{i}] {label}  (reply `{i}` or `{value}`)")
+    return "\n".join(lines)
+
+
+def _build_value_map(options) -> dict:
+    """Lookup table for `_resolve_choice`.
+
+    Keys are lowercase strings the user might send — digit ("1"), the
+    canonical value ("y"), or any single token in the label
+    ("approve" / "reject" / "accept" / "all"). Values are the canonical
+    return value the caller should see.
+
+    First-write-wins: if two options would map the same label-word to
+    different values (rare), the earlier option keeps the binding so the
+    table stays unambiguous.
+    """
+    if not options:
+        return {}
+    table: dict[str, str] = {}
+    def _put(key: str, value: str) -> None:
+        if key and key not in table:
+            table[key] = value
+    for i, (label, value) in enumerate(options, 1):
+        v = str(value)
+        _put(str(i), v)
+        _put(v.lower(), v)
+        # Also accept individual label tokens (so "approve" / "reject" /
+        # "accept" / "all" all work for the standard permission options).
+        for token in str(label).split():
+            _put(_strip_emojis_punct(token), v)
+    return table
+
+
+def _resolve_choice(raw: str, value_map: dict) -> str:
+    """Translate a user reply into the option's canonical value.
+
+    Pass-through when no map (caller didn't pass `options`) or when the
+    reply isn't a recognized alias — preserves existing behavior for
+    free-text questions.
+    """
+    if not value_map or not isinstance(raw, str):
+        return raw
+    key = raw.strip().lower()
+    return value_map.get(key, raw)
+
+
 # ── AskUserQuestion ───────────────────────────────────────────────────────
 
 _INPUT_WAIT_TIMEOUT = 300  # seconds before a remote input request times out
@@ -104,18 +170,29 @@ def ask_input_interactive(prompt: str, config: dict,
     """Route input prompt to Telegram / WeChat / Slack bridge or terminal.
 
     `options` (optional) is a list of ``(button_label, return_value)`` pairs.
-    When set and the active bridge supports it (Telegram today), the prompt
-    is rendered as an inline_keyboard with one button per option; the user's
-    click delivers the matching return_value back through the normal input
-    event.  Bridges without inline-button support (WeChat, Slack, terminal)
-    ignore `options` — callers should put a hint like ``[y/N/a]`` in the
-    prompt text so those clients still know what to type.
+    When set, every bridge gives the user a structured way to pick one:
+
+      - **Telegram**: real inline_keyboard buttons; click delivers the value.
+      - **Slack / WeChat**: numbered menu rendered into the message; reply
+        with the digit, the canonical value, or a label word — all three
+        resolve to the value before the caller sees them.
+      - **Terminal**: numbered menu printed before the input prompt; same
+        digit / value / label-word reply normalization.
+      - **Web (chat API)**: existing browser UI handles approval, untouched.
+
+    When ``options`` is None (default), every existing call site keeps its
+    current free-text behavior — the helper is purely additive.
     """
     import re as _re
     import threading as _threading
     import runtime as _runtime
 
     _session_ctx = _runtime.get_session_ctx(config.get("_session_id", "default"))
+
+    # Pre-compute the menu block + value map once so every bridge branch
+    # sees the same UX. These are no-ops when options is falsy.
+    _menu_block = _format_menu_block(options) if options else ""
+    _value_map  = _build_value_map(options) if options else {}
 
     # ── Slack ──────────────────────────────────────────────────────────────
     if _is_in_slack_turn(config) and _session_ctx.slack_send is not None:
@@ -124,6 +201,8 @@ def ask_input_interactive(prompt: str, config: dict,
         if menu_text:
             payload += _re.sub(r'\x1b\[[0-9;]*m', '', menu_text).strip() + "\n\n"
         payload += f"❓ Input Required\n{clean_prompt}"
+        if _menu_block:
+            payload += "\n\n" + _menu_block
         slack_channel = (_runtime.get_ctx(config).slack_current_channel
                          or config.get("slack_channel", ""))
         _session_ctx.slack_send(slack_channel, payload)
@@ -135,7 +214,7 @@ def ask_input_interactive(prompt: str, config: dict,
         text = _session_ctx.slack_input_value.strip()
         _session_ctx.slack_input_event = None
         _session_ctx.slack_input_value = ""
-        return text
+        return _resolve_choice(text, _value_map)
 
     # ── WeChat ─────────────────────────────────────────────────────────────
     if _is_in_wx_turn(config) and _session_ctx.wx_send is not None:
@@ -144,6 +223,8 @@ def ask_input_interactive(prompt: str, config: dict,
         if menu_text:
             payload += _re.sub(r'\x1b\[[0-9;]*m', '', menu_text).strip() + "\n\n"
         payload += f"❓ 需要输入\n{clean_prompt}"
+        if _menu_block:
+            payload += "\n\n" + _menu_block
         _session_ctx.wx_send(_runtime.get_ctx(config).wx_current_user_id or "", payload)
         evt = _threading.Event()
         _session_ctx.wx_input_event = evt
@@ -153,7 +234,7 @@ def ask_input_interactive(prompt: str, config: dict,
         text = _session_ctx.wx_input_value.strip()
         _session_ctx.wx_input_event = None
         _session_ctx.wx_input_value = ""
-        return text
+        return _resolve_choice(text, _value_map)
 
     # ── Web (chat API) ────────────────────────────────────────────────────
     if getattr(_session_ctx, 'in_web_turn', False):
@@ -178,6 +259,12 @@ def ask_input_interactive(prompt: str, config: dict,
         if menu_text:
             payload += _re.sub(r'\x1b\[[0-9;]*m', '', menu_text).strip() + "\n\n"
         payload += f"❓ *Input Required*\n{clean_prompt}"
+        if _menu_block:
+            # Embed the menu in the prompt body too — buttons render normally,
+            # but the text serves as a fallback if the keyboard ever fails to
+            # show (very old clients, narrow web preview) and lets users type
+            # `1` / `y` / `approve` instead of clicking if they prefer.
+            payload += "\n\n" + _menu_block
 
         if options:
             # Inline-keyboard path: render real Telegram buttons. callback_data
@@ -213,12 +300,22 @@ def ask_input_interactive(prompt: str, config: dict,
         _session_ctx.tg_input_value = ""
         _session_ctx.tg_callback_prompt_id = ""
         _session_ctx.tg_callback_message_id = 0
-        return text
+        # Click on inline_keyboard delivers the canonical value already, so
+        # _resolve_choice is a no-op there. If the user typed `1` / `approve`
+        # instead of clicking, this is what normalizes their reply.
+        return _resolve_choice(text, _value_map)
 
     # ── Terminal ────────────────────────────────────────────────────────────
     try:
+        if _menu_block:
+            # Print on a fresh line so the menu sits cleanly above the
+            # input cursor; the original prompt text (which already shows
+            # the canonical hint, e.g. "[y/N/a]") becomes the input prompt
+            # below.
+            print()
+            print(_menu_block)
         rl_prompt = _re.sub(r'(\x1b\[[0-9;]*m)', r'\001\1\002', prompt)
-        return input(rl_prompt)
+        return _resolve_choice(input(rl_prompt), _value_map)
     except (KeyboardInterrupt, EOFError):
         print()
         return ""
