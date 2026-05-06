@@ -2,7 +2,7 @@
 
 Four types capture context NOT derivable from the current project state.
 Code patterns, architecture, git history, and file structure are derivable
-(via grep/git/CLAUDE.md) and should NOT be saved as memories.
+(via grep/git/AGENTS.md) and should NOT be saved as memories.
 """
 
 MEMORY_TYPES = ["user", "feedback", "project", "reference"]
@@ -33,7 +33,7 @@ WHAT_NOT_TO_SAVE = """\
 - Code patterns, conventions, architecture, file paths, or project structure — derivable from the codebase.
 - Git history, recent changes, who-changed-what — use `git log` / `git blame`.
 - Debugging solutions or fix recipes — the fix is in the code; the commit message has context.
-- Anything already documented in CLAUDE.md files.
+- Anything already documented in AGENTS.md files.
 - Ephemeral task details: in-progress work, temporary state, current conversation context.
 
 These exclusions apply even when explicitly asked. If asked to save a PR list or activity summary,
@@ -79,7 +79,7 @@ persist beyond this conversation. For feedback: save corrections AND quiet confi
 2. The index (MEMORY.md) is updated automatically.
 
 **What NOT to save**: code patterns, architecture, git history, debugging fixes,
-anything already in CLAUDE.md, or ephemeral task state.
+anything already in AGENTS.md, or ephemeral task state.
 
 **Before recommending from memory**: A memory naming a file, function, or flag may be stale.
 Verify it still exists before acting on it. For current state, prefer `git log` or reading code.

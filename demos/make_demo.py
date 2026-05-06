@@ -185,7 +185,7 @@ def build_scenes():
         "Here are the Python files in this project with their line counts:",
         "",
         "  76  config.py      — Configuration management and cost calculation",
-        " 100  context.py     — System prompt builder, CLAUDE.md + git injection",
+        " 100  context.py     — System prompt builder, AGENTS.md + git injection",
         " 173  agent.py       — Core agent loop with streaming API calls",
         " 359  tools.py       — 8 built-in tools (Read/Write/Edit/Bash/Glob/Grep/Web)",
         " 553  cheetahclaws.py — REPL entry point, slash commands, rich rendering",
