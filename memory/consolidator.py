@@ -38,7 +38,7 @@ Return {"memories": []} if nothing new or worth saving.
 Do NOT extract:
 - Code patterns, architecture, file paths — derivable from the codebase
 - Git history or debugging fixes — already in commits
-- Anything already obvious from CLAUDE.md
+- Anything already obvious from AGENTS.md
 - Ephemeral task state or tool results
 
 Keep to AT MOST 3 memories. Quality over quantity."""

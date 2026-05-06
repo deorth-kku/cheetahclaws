@@ -19,7 +19,7 @@ import context as _context
 
 @pytest.fixture(autouse=True)
 def _isolate_cwd(tmp_path, monkeypatch):
-    """Run every test in an empty tmp cwd so real CLAUDE.md / .git don't leak in."""
+    """Run every test in an empty tmp cwd so real AGENTS.md / .git don't leak in."""
     monkeypatch.chdir(tmp_path)
     yield
 
