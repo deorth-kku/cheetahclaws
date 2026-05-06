@@ -53,26 +53,26 @@ def _run_tests(tmpdir):
 
     # ── Step 1: /init ──
     print(f"\n{SEP}")
-    print("STEP 1: /init — create CLAUDE.md")
+    print("STEP 1: /init — create AGENTS.md")
     print(SEP)
-    assert not (tmpdir / "CLAUDE.md").exists()
+    assert not (tmpdir / "AGENTS.md").exists()
     result = cmd_init("", state, config)
     assert result == True
-    assert (tmpdir / "CLAUDE.md").exists()
-    content = (tmpdir / "CLAUDE.md").read_text(encoding="utf-8")
+    assert (tmpdir / "AGENTS.md").exists()
+    content = (tmpdir / "AGENTS.md").read_text(encoding="utf-8")
     assert "## Project Overview" in content
     assert tmpdir.name in content  # project name from dir
-    print(f"  Created CLAUDE.md ({len(content)} chars)")
+    print(f"  Created AGENTS.md ({len(content)} chars)")
     print("  PASS")
 
     # ── Step 2: /init — already exists ──
     print(f"\n{SEP}")
-    print("STEP 2: /init — refuses if CLAUDE.md exists")
+    print("STEP 2: /init — refuses if AGENTS.md exists")
     print(SEP)
     result = cmd_init("", state, config)
     assert result == True  # handled, but didn't overwrite
     # Content should be unchanged
-    assert (tmpdir / "CLAUDE.md").read_text(encoding="utf-8") == content
+    assert (tmpdir / "AGENTS.md").read_text(encoding="utf-8") == content
     print("  Correctly refused to overwrite")
     print("  PASS")
 

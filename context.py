@@ -1,17 +1,17 @@
-"""System context: CLAUDE.md, git info, cwd injection.
+"""System context: AGENTS.md, git info, cwd injection.
 
 Prompt assembly pipeline:
 
     build_system_prompt(config) -> str
         = pick_base_prompt(provider, model)      # default.md + matched overlay
-        + _render_env_block(config)              # date / cwd / platform / git / CLAUDE.md
+        + _render_env_block(config)              # date / cwd / platform / git / AGENTS.md
         + memory index (if any)
         + tmux fragment (if tmux available)      # prompts/fragments/tmux.md
         + plan mode fragment (if plan active)    # prompts/fragments/plan.md
 
 Base + overlay design lives under ``prompts/`` — see ``prompts/README.md``.
 Base/overlay files contain no placeholders and are loaded verbatim.
-Dynamic per-run data (date, cwd, CLAUDE.md, plan file path) is rendered
+Dynamic per-run data (date, cwd, AGENTS.md, plan file path) is rendered
 separately and appended.
 
 Callers outside this module should only touch ``build_system_prompt``.
@@ -80,38 +80,38 @@ def get_git_info() -> str:
 
 
 def get_claude_md() -> str:
-    """Load CLAUDE.md from cwd or parents, and ~/.claude/CLAUDE.md.
+    """Load AGENTS.md from cwd or parents, and ~/.claude/AGENTS.md.
 
     Each file is scanned for prompt injection patterns before inclusion.
     """
     content_parts = []
     warnings = []
 
-    # Global CLAUDE.md
-    global_md = Path.home() / ".claude" / "CLAUDE.md"
+    # Global AGENTS.md
+    global_md = Path.home() / ".claude" / "AGENTS.md"
     if global_md.exists():
         try:
             text = global_md.read_text()
-            threat = _scan_for_threats(text, f"Global CLAUDE.md ({global_md})")
+            threat = _scan_for_threats(text, f"Global AGENTS.md ({global_md})")
             if threat:
                 warnings.append(threat)
             else:
-                content_parts.append(f"[Global CLAUDE.md]\n{text}")
+                content_parts.append(f"[Global AGENTS.md]\n{text}")
         except Exception:
             pass
 
-    # Project CLAUDE.md (walk up from cwd)
+    # Project AGENTS.md (walk up from cwd)
     p = Path.cwd()
     for _ in range(10):
-        candidate = p / "CLAUDE.md"
+        candidate = p / "AGENTS.md"
         if candidate.exists():
             try:
                 text = candidate.read_text()
-                threat = _scan_for_threats(text, f"Project CLAUDE.md ({candidate})")
+                threat = _scan_for_threats(text, f"Project AGENTS.md ({candidate})")
                 if threat:
                     warnings.append(threat)
                 else:
-                    content_parts.append(f"[Project CLAUDE.md: {candidate}]\n{text}")
+                    content_parts.append(f"[Project AGENTS.md: {candidate}]\n{text}")
             except Exception:
                 pass
             break
@@ -128,7 +128,7 @@ def get_claude_md() -> str:
 
     if not content_parts:
         return ""
-    return "\n# Memory / CLAUDE.md\n" + "\n\n".join(content_parts) + "\n"
+    return "\n# Memory / AGENTS.md\n" + "\n\n".join(content_parts) + "\n"
 
 
 def get_platform_hints() -> str:
@@ -154,7 +154,7 @@ def get_platform_hints() -> str:
 
 
 def _render_env_block(config: dict | None = None) -> str:
-    """Render the per-run environment block (date / cwd / platform / git / CLAUDE.md).
+    """Render the per-run environment block (date / cwd / platform / git / AGENTS.md).
 
     This used to be the ``# Environment`` section at the bottom of the
     monolithic SYSTEM_PROMPT_TEMPLATE.  It now renders fresh every call
@@ -231,7 +231,7 @@ def build_system_prompt(config: dict | None = None) -> str:
 
     Structure (top → bottom):
         1. Provider-selected base prompt (``prompts/base/<provider>.md``)
-        2. Per-run environment block (date, cwd, platform, git, CLAUDE.md)
+       2. Per-run environment block (date, cwd, platform, git, CLAUDE.md / AGENTS.md)
         3. Live slash-command index (so the model can answer
            "what can you do?" without confabulating)
         4. Memory index (if any memories exist)
