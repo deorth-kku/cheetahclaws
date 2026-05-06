@@ -326,10 +326,10 @@ def cmd_compact(args: str, state, config) -> bool:
 
 
 def cmd_init(args: str, state, config) -> bool:
-    """Initialize a CLAUDE.md file in the current directory."""
-    target = Path.cwd() / "CLAUDE.md"
+    """Initialize a AGENTS.md file in the current directory."""
+    target = Path.cwd() / "AGENTS.md"
     if target.exists():
-        err(f"CLAUDE.md already exists at {target}")
+        err(f"AGENTS.md already exists at {target}")
         info("Edit it directly or delete it first.")
         return True
 
@@ -634,14 +634,14 @@ def cmd_doctor(args: str, state, config) -> bool:
                 _warn(f"{desc}: not installed (optional)")
 
     print()
-    claude_md = Path.cwd() / "CLAUDE.md"
-    global_md = Path.home() / ".claude" / "CLAUDE.md"
+    claude_md = Path.cwd() / "AGENTS.md"
+    global_md = Path.home() / ".claude" / "AGENTS.md"
     if claude_md.exists():
-        _ok(f"Project CLAUDE.md: {claude_md}")
+        _ok(f"Project AGENTS.md: {claude_md}")
     else:
-        _warn("No project CLAUDE.md (run /init to create)")
+        _warn("No project AGENTS.md (run /init to create)")
     if global_md.exists():
-        _ok(f"Global CLAUDE.md: {global_md}")
+        _ok(f"Global AGENTS.md: {global_md}")
 
     ckpt_root = Path.home() / ".nano_claude" / "checkpoints"
     if ckpt_root.exists():

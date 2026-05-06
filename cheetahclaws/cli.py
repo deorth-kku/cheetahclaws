@@ -32,7 +32,7 @@ Slash commands in REPL:
   /cwd [path] Show or change working directory
   /workspace [cmd] Manage CheetahClaws workspaces (list/switch/create/delete)
   /compact    Compact conversation history to save context space
-  /init       Initialize a CLAUDE.md file in the current directory
+  /init       Initialize a AGENTS.md file in the current directory
   /export [f] Export conversation history to a Markdown file
   /copy       Copy the last assistant response to clipboard
   /doctor     Diagnose installation health and tool connectivity
@@ -663,7 +663,7 @@ _CMD_META: dict[str, tuple[str, list[str]]] = {
     "rewind":      ("Rewind to checkpoint (alias)",        ["clear"]),
     "plan":        ("Enter/exit plan mode",                ["done", "status"]),
     "compact":     ("Compact conversation history",         []),
-    "init":        ("Initialize CLAUDE.md template",        []),
+    "init":        ("Initialize AGENTS.md template",        []),
     "export":      ("Export conversation to file",          []),
     "copy":        ("Copy last response to clipboard",      []),
     "status":      ("Show session status and model info",   []),

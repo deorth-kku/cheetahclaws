@@ -850,7 +850,7 @@ def cmd_brainstorm(args: str, state, config) -> bool:
 
     readme_path = Path("README.md")
     readme_content = readme_path.read_text("utf-8", errors="replace") if readme_path.exists() else ""
-    claude_md = Path("CLAUDE.md")
+    claude_md = Path("AGENTS.md")
     claude_content = claude_md.read_text("utf-8", errors="replace") if claude_md.exists() else ""
     project_files = "\n".join([f.name for f in Path(".").glob("*") if f.is_file() and not f.name.startswith(".")])
 
@@ -1965,7 +1965,7 @@ def cmd_ssj(args: str, state, config) -> bool:
                 return ("__ssj_query__", f"Give a quick code review of {fpath}: identify bugs, code smells, or missing edge cases. Be concise.")
 
         elif choice == "7":
-            return ("__ssj_query__", "Generate a comprehensive README.md for this project. Include: project description, features, installation, usage examples, and contributing guidelines. Use the project files and CLAUDE.md for context.")
+            return ("__ssj_query__", "Generate a comprehensive README.md for this project. Include: project description, features, installation, usage examples, and contributing guidelines. Use the project files and AGENTS.md for context.")
 
         elif choice == "8":
             return ("__ssj_query__", "Review the git diff (git diff HEAD) and suggest a concise, descriptive commit message following conventional commits format. Also list files changed.")
