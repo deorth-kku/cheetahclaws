@@ -2,7 +2,7 @@
 commands/core.py — Core utility commands for CheetahClaws.
 
 Commands: /help, /clear, /context, /cost, /compact, /init, /export,
-          /copy, /status, /doctor, /proactive, /image, /circuit
+          /copy, /status, /doctor, /proactive, /image, /image-tool, /circuit
 """
 from __future__ import annotations
 
@@ -84,8 +84,8 @@ def cmd_clear(_args: str, state, config) -> bool:
 
 
 def cmd_context(_args: str, state, config) -> bool:
-    msg_chars = sum(len(str(m.get("content", ""))) for m in state.messages)
-    est_tokens = msg_chars // 4
+    from compaction import estimate_tokens
+    est_tokens = estimate_tokens(state.messages)
     info(f"Messages:         {len(state.messages)}")
     info(f"Estimated tokens: ~{est_tokens:,}")
     info(f"Model:            {config['model']}")

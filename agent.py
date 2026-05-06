@@ -586,6 +586,17 @@ def run(
             })
             break
 
+        # Check for pending image from tools (e.g., ViewImage)
+        sctx = runtime.get_ctx(config)
+        pending_img = sctx.pending_image
+        sctx.pending_image = None
+        if pending_img:
+            state.messages.append({
+                "role": "user",
+                "content": "Please analyze the image I just sent.",
+                "images": [pending_img],
+            })
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────
 

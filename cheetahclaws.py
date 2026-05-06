@@ -79,6 +79,7 @@ Slash commands in REPL:
   /trading history            Past trading decisions
   /trading memory [action]    Manage trading memory (list, search, clear)
   /image [prompt]   Send clipboard image to vision model
+  /image-tool <path> [prompt] Read image file and inject into vision model context
   /video [topic]    AI video content factory — story → TTS → images → subtitles → MP4
   /voice            Record voice input, transcribe, and submit
   /voice status     Show available recording and STT backends
