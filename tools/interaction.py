@@ -123,21 +123,23 @@ def _ask_user_question(
     config = config or {}
     options = options or []
 
+    import re as _re
+    from ui.render import clr
+    _clean = _re.sub(r'\*\*(.+?)\*\*', r'\1', question)
+    _clean = _re.sub(r'`(.+?)`', r'\1', _clean)
+    _clean = _re.sub(r'\*(.+?)\*', r'\1', _clean)
+
     print()
-    print("\033[1;35m❓ Question from assistant:\033[0m")
-    print(f"   {question}")
+    print(clr("❓ ", "magenta", "bold") + clr(_clean, "bold"))
 
     if options:
         print()
         for i, opt in enumerate(options, 1):
             label = opt.get("label", "")
             desc  = opt.get("description", "")
-            line  = f"  [{i}] {label}"
-            if desc:
-                line += f" — {desc}"
-            print(line)
+            print(clr(f"  [{i}] ", "cyan") + label + (clr(f" — {desc}", "dim") if desc else ""))
         if allow_freetext:
-            print("  [0] Type a custom answer")
+            print(clr("  [0] ", "dim") + clr("Type a custom answer", "dim"))
         print()
 
         while True:

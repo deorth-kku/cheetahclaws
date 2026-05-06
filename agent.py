@@ -306,7 +306,7 @@ def _check_permission(tc: dict, config: dict) -> bool:
     name = tc["name"]
 
     # Plan mode tools are always auto-approved
-    if name in ("EnterPlanMode", "ExitPlanMode"):
+    if name in ("EnterPlanMode", "ExitPlanMode", "AskUserQuestion"):
         return True
 
     if perm_mode == "accept-all":

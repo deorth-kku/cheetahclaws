@@ -272,17 +272,27 @@ def _tool_desc(name: str, inputs: dict) -> str:
     if name == "CheckAgentResult": return f"CheckAgentResult({inputs.get('task_id','')})"
     if name == "ListAgentTasks":   return "ListAgentTasks()"
     if name == "ListAgentTypes":   return "ListAgentTypes()"
+    if name == "AskUserQuestion":
+        questions = inputs.get("questions", [])
+        if questions:
+            first = questions[0].get("question", "") if isinstance(questions[0], dict) else str(questions[0])
+            return f"AskUserQuestion({first[:60]}{'…' if len(first) > 60 else ''})"
+        return "AskUserQuestion()"
     return f"{name}({list(inputs.values())[:1]})"
 
 
 def print_tool_start(name: str, inputs: dict, verbose: bool):
     """Show tool invocation."""
+    if name == "AskUserQuestion":
+        return
     desc = _tool_desc(name, inputs)
     print(clr(f"  ⚙  {desc}", "dim", "cyan"), flush=True)
     if verbose:
         print(clr(f"     inputs: {json.dumps(inputs, ensure_ascii=False)[:200]}", "dim"))
 
 def print_tool_end(name: str, result: str, verbose: bool):
+    if name == "AskUserQuestion":
+        return
     lines = result.count("\n") + 1
     size = len(result)
     summary = f"→ {lines} lines ({size} chars)"

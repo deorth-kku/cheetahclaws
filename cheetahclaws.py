@@ -1241,7 +1241,12 @@ def repl(config: dict, initial_prompt: str = None):
                     ctx_hint = clr(f" {pct}%", "dim")
             except Exception:
                 pass
-            prompt = clr(f"\n[{cwd_short}]", "dim") + ctx_hint + clr(" ", "dim") + clr("» ", "cyan", "bold")
+            try:
+                _cols = os.get_terminal_size().columns
+            except OSError:
+                _cols = 80
+            print(clr("─" * _cols, "dim"))
+            prompt = clr(f"[{cwd_short}]", "dim") + ctx_hint + clr(" ", "dim") + clr("» ", "cyan", "bold")
             user_input = _read_input(prompt)
         except (EOFError, KeyboardInterrupt):
             print()
