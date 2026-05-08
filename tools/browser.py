@@ -38,10 +38,20 @@ def _web_browse(params: dict, config: dict) -> str:
 
             if action == "screenshot":
                 import base64
+
                 screenshot = page.screenshot(full_page=False)
                 b64 = base64.b64encode(screenshot).decode()
                 browser.close()
-                return f"Screenshot captured ({len(screenshot)} bytes, base64-encoded).\ndata:image/png;base64,{b64[:100]}..."
+
+                # Inject into vision model context (same as ViewImage)
+                import runtime
+                runtime.get_ctx(config).pending_image = b64
+
+                size_kb = len(screenshot) / 1024
+                return (
+                    f"Screenshot captured ({size_kb:.0f} KB, PNG).\n\n"
+                    "The image has been sent to the vision model. It will now analyze the screenshot."
+                )
 
             elif action == "click":
                 if not selector:
