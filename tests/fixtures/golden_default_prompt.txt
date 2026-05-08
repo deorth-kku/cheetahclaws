@@ -92,3 +92,63 @@ Return control to the user when:
 - Current date: <MASKED>
 - Working directory: <MASKED>
 - Platform: <MASKED>
+
+# Available Slash Commands (User-invokable in this CheetahClaws session)
+
+These commands the **user** can invoke at the REPL prompt — they are NOT tools you call. When the user asks 'what can you do?' / '你能做什么?' / asks about a feature like trading or research or web UI, reference these by their exact `/name` so the user can try them. Do not invent commands that are not on this list.
+
+- `/agent` `[start | stop | list | status | templates]` — Autonomous agent loop (task templates)
+- `/agents` — Show background agents
+- `/brainstorm` — Multi-persona AI debate + auto tasks
+- `/checkpoint` `[clear]` — List / restore checkpoints
+- `/circuit` `[status | reset]` — Show / reset per-provider circuit breakers
+- `/clear` — Clear conversation history
+- `/cloudsave` `[setup | auto | list | load | push]` — Cloud-sync sessions to GitHub Gist
+- `/compact` — Compact conversation history
+- `/config` — Show / set config key=value
+- `/context` — Show token-context usage
+- `/copy` — Copy last response to clipboard
+- `/cost` — Show cost estimate
+- `/cwd` — Show / change working directory
+- `/doctor` — Diagnose installation health
+- `/draft` — Draft 3 reply candidates for a message (manual copy)
+- `/exit` — Exit cheetahclaws
+- `/export` — Export conversation to file
+- `/help` — Show help
+- `/history` — Show conversation history
+- `/image` — Send clipboard image to model
+- `/img` — Send clipboard image (alias)
+- `/init` — Initialize CLAUDE.md template
+- `/lab` `[start | status | abort | logs | resume | iterate | backlog | daemon | models | migrate-paths]` — Autonomous research lab — multi-agent paper drafting + reviewer iteration
+- `/load` — Load a saved session
+- `/mcp` `[reload | add | remove | list]` — Manage MCP servers
+- `/memory` `[consolidate]` — Search / list / consolidate memories
+- `/model` — Show / set model
+- `/permissions` `[auto | accept-all | manual]` — Set permission mode
+- `/plan` `[done | status]` — Enter/exit plan mode
+- `/plugin` `[install | uninstall | enable | disable | disable-all | update | recommend | info]` — Manage plugins
+- `/proactive` `[off]` — Manage proactive background watcher
+- `/quit` — Exit (alias for /exit)
+- `/resume` — Resume last session
+- `/rewind` `[clear]` — Rewind to checkpoint (alias)
+- `/save` — Save session to file
+- `/search` — Search past sessions
+- `/setup` — Run interactive setup wizard
+- `/skills` — List available skills
+- `/slack` `[stop | status | logout]` — Slack bot bridge (Web API)
+- `/ssj` — SSJ Developer Mode — power menu
+- `/status` — Show session status and model info
+- `/task` `[create | delete | get | clear | todo | in-progress | done | blocked]` — Manage tasks (alias)
+- `/tasks` `[create | delete | get | clear | todo | in-progress | done | blocked]` — Manage tasks
+- `/telegram` `[stop | status]` — Telegram bot bridge
+- `/theme` — List or set the console color theme
+- `/thinking` — Toggle extended thinking
+- `/trade` — Alias for /trading
+- `/trading` `[analyze | backtest | price | indicators | status | history | memory]` — AI trading agent — multi-agent analysis and backtesting
+- `/tts` `[status]` — AI voice generator: text → any style → audio file
+- `/verbose` — Toggle verbose output
+- `/video` `[status | niches]` — AI video factory: story→voice→images→mp4
+- `/voice` `[lang | status | device]` — Voice input (record → STT)
+- `/web` `[status | --no-auth | --host]` — Start the web terminal / chat UI in background
+- `/wechat` `[stop | status]` — WeChat bridge (iLink Bot API)
+- `/worker` — Auto-implement pending tasks

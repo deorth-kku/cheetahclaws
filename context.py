@@ -189,15 +189,54 @@ def _tmux_available() -> bool:
         return False
 
 
+def _render_commands_block() -> str:
+    """Render a markdown list of every registered slash command.
+
+    Pulls live from ``cheetahclaws._CMD_META`` (lazy import to avoid the
+    cheetahclaws -> context -> cheetahclaws circular at module load), so
+    the prompt always reflects the current command surface — including
+    plugins merged in via ``_load_external_commands_into``.
+
+    Without this block the model has no idea what `/trading`,
+    `/research`, `/lab`, `/web`, `/wechat` etc. are and will confabulate
+    when the user asks "what can you do?" — see context.py docstring.
+    """
+    try:
+        import cheetahclaws as _cc
+    except ImportError:
+        return ""
+    meta = getattr(_cc, "_CMD_META", None)
+    if not meta:
+        return ""
+
+    lines = [
+        "# Available Slash Commands (User-invokable in this CheetahClaws session)",
+        "",
+        "These commands the **user** can invoke at the REPL prompt — they are"
+        " NOT tools you call. When the user asks 'what can you do?' / '你能做什么?'"
+        " / asks about a feature like trading or research or web UI, reference"
+        " these by their exact `/name` so the user can try them. Do not invent"
+        " commands that are not on this list.",
+        "",
+    ]
+    for name in sorted(meta.keys()):
+        desc, subs = meta[name]
+        sub_str = f" `[{' | '.join(subs)}]`" if subs else ""
+        lines.append(f"- `/{name}`{sub_str} — {desc}")
+    return "\n".join(lines)
+
+
 def build_system_prompt(config: dict | None = None) -> str:
     """Build the full system prompt for the current session.
 
     Structure (top → bottom):
         1. Provider-selected base prompt (``prompts/base/<provider>.md``)
         2. Per-run environment block (date, cwd, platform, git, CLAUDE.md)
-        3. Memory index (if any memories exist)
-        4. Tmux fragment (if tmux is installed)
-        5. Plan-mode fragment (if ``permission_mode == "plan"``)
+        3. Live slash-command index (so the model can answer
+           "what can you do?" without confabulating)
+        4. Memory index (if any memories exist)
+        5. Tmux fragment (if tmux is installed)
+        6. Plan-mode fragment (if ``permission_mode == "plan"``)
     """
     # Resolve provider lazily to avoid circular imports at module load.
     from providers import detect_provider
@@ -214,6 +253,10 @@ def build_system_prompt(config: dict | None = None) -> str:
         pick_base_prompt(provider, model_id),
         _render_env_block(cfg),
     ]
+
+    cmds_block = _render_commands_block()
+    if cmds_block:
+        parts.append(cmds_block)
 
     memory_ctx = get_memory_context()
     if memory_ctx:

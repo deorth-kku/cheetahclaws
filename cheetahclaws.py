@@ -443,6 +443,23 @@ COMMANDS = {
 }
 
 # ── Load commands from modular/ ecosystem + installed plugins ──────────────
+def _register_external_meta(meta_dict: dict, cmd_name: str, cmd_def: dict) -> None:
+    """Populate _CMD_META for a modular/plugin command so it shows up in /help,
+    tab-completion, and the system-prompt slash-command index. Without this the
+    command is callable but invisible to those surfaces."""
+    if cmd_name in meta_dict:
+        return
+    help_field = cmd_def.get("help")
+    if isinstance(help_field, tuple) and len(help_field) >= 1:
+        desc = help_field[0]
+        subs = list(help_field[1]) if len(help_field) >= 2 and help_field[1] else []
+    elif isinstance(help_field, str):
+        desc, subs = help_field, []
+    else:
+        desc, subs = "External command", []
+    meta_dict[cmd_name] = (desc, subs)
+
+
 def _load_external_commands_into(commands_dict: dict) -> None:
     """Merge commands from modular/ modules and user-installed plugins into COMMANDS."""
     # 1. modular/ ecosystem (auto-discovered, ships with the project)
@@ -450,8 +467,10 @@ def _load_external_commands_into(commands_dict: dict) -> None:
         for cmd_name, cmd_def in _modular_load_commands().items():
             if cmd_name not in commands_dict and callable(cmd_def.get("func")):
                 commands_dict[cmd_name] = cmd_def["func"]
+                _register_external_meta(_CMD_META, cmd_name, cmd_def)
                 for alias in cmd_def.get("aliases", []):
                     commands_dict.setdefault(alias, cmd_def["func"])
+                    _CMD_META.setdefault(alias, (f"Alias for /{cmd_name}", []))
     except Exception:
         pass
 
@@ -461,12 +480,12 @@ def _load_external_commands_into(commands_dict: dict) -> None:
         for cmd_name, cmd_def in load_plugin_commands().items():
             if cmd_name not in commands_dict and callable(cmd_def.get("func")):
                 commands_dict[cmd_name] = cmd_def["func"]
+                _register_external_meta(_CMD_META, cmd_name, cmd_def)
                 for alias in cmd_def.get("aliases", []):
                     commands_dict.setdefault(alias, cmd_def["func"])
+                    _CMD_META.setdefault(alias, (f"Alias for /{cmd_name}", []))
     except Exception:
         pass
-
-_load_external_commands_into(COMMANDS)
 
 
 def __getattr__(name: str):
@@ -582,6 +601,12 @@ _CMD_META: dict[str, tuple[str, list[str]]] = {
     "quit":        ("Exit (alias for /exit)",             []),
     "resume":      ("Resume last session",                []),
 }
+
+
+# Merge modular/ + plugin commands into both COMMANDS and _CMD_META.
+# Must run after _CMD_META is defined so external commands show up in
+# tab-completion, /help, and the system-prompt slash-command index.
+_load_external_commands_into(COMMANDS)
 
 
 _rl_current_prompt = ""   # set by _read_input before each input() call
