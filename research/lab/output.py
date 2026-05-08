@@ -27,20 +27,27 @@ def write_markdown_report(run: "LabRun", *,
                            output_dir: Optional[Path] = None) -> str:
     """Compose + persist the Markdown report; return the markdown text.
 
-    Output directory is now ``<date>_<time>_<topic-slug>_<run_id_short>``
-    instead of the cryptic ``lab_xxxxxxxxxxxx``, so users can find
-    their reports by skimming filenames. Falls back to the run_id-only
-    path when ``run.state.created_at`` isn't available (legacy in-memory
-    runs from tests).
+    All run artefacts (report.md, references.bib, citations_verified.json,
+    sandbox workspace) live under the single ``run.output_dir`` so the
+    user gets **one folder per /lab invocation**, named in the
+    human-readable form ``<date>_<time>_<topic-slug>_<run_id_short>``.
+
+    ``output_dir`` parameter is kept for back-compat — when given it
+    overrides the per-run path entirely (used by tests that point at a
+    tmp_path).
     """
-    out_root = output_dir or DEFAULT_OUTPUT_DIR
-    rec = run.storage.get_run(run.state.run_id)
-    if rec is not None and getattr(rec, "created_at", None):
-        run_dir = out_root / human_dir_name(
-            run.state.run_id, run.state.topic, rec.created_at
-        )
+    if output_dir is not None:
+        # Explicit override (tests). Reproduce the human-name layout
+        # underneath the override so tests still verify the naming.
+        rec = run.storage.get_run(run.state.run_id)
+        if rec is not None and getattr(rec, "created_at", None):
+            run_dir = output_dir / human_dir_name(
+                run.state.run_id, run.state.topic, rec.created_at
+            )
+        else:
+            run_dir = output_dir / run.state.run_id
     else:
-        run_dir = out_root / run.state.run_id   # legacy / test-only path
+        run_dir = run.output_dir
     run_dir.mkdir(parents=True, exist_ok=True)
 
     md = _compose(run.state.run_id, run.state.topic, run.storage)

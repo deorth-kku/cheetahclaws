@@ -191,6 +191,7 @@ def resume_run(*, run_id: str,
                call_llm: Optional[CallLLM] = None,
                cancel_check: Optional[Callable[[], bool]] = None,
                on_stage_change: Optional[Callable[[Stage], None]] = None,
+               output_root: Optional[Path] = None,
                ) -> LabRun:
     """Continue a previously-started lab run.
 
@@ -213,6 +214,7 @@ def resume_run(*, run_id: str,
         convergence=convergence,
         call_llm=call_llm or _default_call_llm,
         on_stage_change=on_stage_change,
+        output_root=output_root,
     )
     storage.update_run_status(rec.run_id, "running",
                               current_stage=state.stage.value)

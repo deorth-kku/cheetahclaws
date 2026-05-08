@@ -40,6 +40,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any, Callable, Optional, Protocol
 
 from . import storage as _storage
@@ -170,6 +171,28 @@ class LabRun:
     convergence: ConvergenceConfig = field(default_factory=ConvergenceConfig)
     call_llm: CallLLM = _default_call_llm
     on_stage_change: Optional[Callable[[Stage], None]] = None
+    # Optional override for the filesystem root where this run's
+    # report.md, references.bib, sandbox workspace, etc. all go.
+    # When None, falls back to ~/.cheetahclaws/research_papers/<human-name>/.
+    # Tests inject a tmp_path here so they don't pollute the user's home.
+    output_root: Optional["Path"] = None
+
+    @property
+    def output_dir(self) -> "Path":
+        """Single canonical filesystem dir for this run — report.md,
+        references.bib, sandbox workspaces, citation_verified.json all
+        live under here, so one ``/lab`` invocation = one folder.
+        """
+        from .storage import DEFAULT_OUTPUT_DIR, output_dir_for
+        rec = self.storage.get_run(self.state.run_id)
+        if rec is not None and rec.created_at:
+            return output_dir_for(
+                rec.run_id, rec.topic, rec.created_at,
+                root=self.output_root,
+            )
+        # Legacy / test path: no DB record yet, fall back to run_id.
+        root = self.output_root or DEFAULT_OUTPUT_DIR
+        return root / self.state.run_id
 
 
 # ── Public entrypoint ─────────────────────────────────────────────────────
@@ -187,6 +210,7 @@ def run_one_lab_session(
     max_rounds: int = 5,
     cancel_check: Optional[Callable[[], bool]] = None,
     on_stage_change: Optional[Callable[[Stage], None]] = None,
+    output_root: Optional["Path"] = None,
 ) -> LabRun:
     """Run a full lab session start→finalization in the calling thread.
 
@@ -209,6 +233,7 @@ def run_one_lab_session(
         convergence=convergence or ConvergenceConfig(max_rounds=max_rounds),
         call_llm=call_llm or _default_call_llm,
         on_stage_change=on_stage_change,
+        output_root=output_root,
     )
     storage.update_run_status(rec.run_id, "running",
                               current_stage=state.stage.value)
@@ -549,7 +574,10 @@ def _stage_experiment(run: LabRun) -> None:
     s = run.state
     if s.skip_experiment or not s.experiment_code:
         return
-    workspace = _sandbox.make_workspace(s.run_id)
+    # Sandbox workspace lives INSIDE the run's canonical output dir, so
+    # one /lab invocation = one folder containing report + workspace.
+    workspace = run.output_dir / "workspace"
+    workspace.mkdir(parents=True, exist_ok=True)
     timeout_s = float(run.config.get("lab_experiment_timeout_s", 180))
     max_attempts = int(run.config.get("lab_experiment_max_attempts", 3))
 
