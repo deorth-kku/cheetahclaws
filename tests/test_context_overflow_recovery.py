@@ -41,16 +41,17 @@ _OPENAI_OVERFLOW_ERR = (
 
 def test_parse_reproduces_user_failure_case():
     """The user's exact error: max=32768, prompt=24577, requested=8192.
-    Safe new cap: 32768 - 24577 - 1000_buffer = 7191.
+    Safe new cap: 32768 - 24577 - 2500_buffer = 5691.
 
-    The buffer is intentionally generous (3% of 32K) because providers
-    re-tokenize prompts slightly differently on retry; we observed
-    +201 tokens on the retry which caused the original 200-byte buffer
-    to fail by 1 token — losing the entire benefit of auto-reduction."""
+    The buffer is intentionally generous (~7.6% of 32K) because vLLM-
+    served qwen2.5-72b in the wild re-tokenizes prompts ~+1000 tokens
+    larger on the retry (decoder priming budget not counted in initial
+    validation). Earlier 200 / 1000 buffers both failed by getting
+    eaten by this growth; 2500 has real headroom."""
     new_cap = _try_reduce_output_cap_from_error(
         _OPENAI_OVERFLOW_ERR, {"max_tokens": 8192},
     )
-    assert new_cap == 7191
+    assert new_cap == 5691
 
 
 def test_parse_returns_none_when_new_cap_not_smaller():
@@ -69,10 +70,10 @@ def test_parse_returns_none_when_safe_cap_is_too_small():
     to compaction."""
     err = (
         "This model's maximum context length is 8192 tokens. However, "
-        "your prompt contains at least 7500 input tokens, for a total "
-        "of 16192 tokens."
+        "your prompt contains at least 6000 input tokens, for a total "
+        "of 14192 tokens."
     )
-    # Safe cap = 8192 - 7500 - 1000_buffer = -308 < 256 → None
+    # Safe cap = 8192 - 6000 - 2500_buffer = -308 < 256 → None
     assert _try_reduce_output_cap_from_error(err, {"max_tokens": 4096}) is None
 
 
@@ -93,8 +94,8 @@ def test_parse_anthropic_style_phrasing():
         "Your prompt contains 195000 input tokens."
     )
     new_cap = _try_reduce_output_cap_from_error(err, {"max_tokens": 16000})
-    # 200000 - 195000 - 1000 = 4000
-    assert new_cap == 4000
+    # 200000 - 195000 - 2500 = 2500
+    assert new_cap == 2500
 
 
 def test_parse_no_current_cap_still_works():
@@ -103,7 +104,7 @@ def test_parse_no_current_cap_still_works():
     new_cap = _try_reduce_output_cap_from_error(
         _OPENAI_OVERFLOW_ERR, {},
     )
-    assert new_cap == 7191
+    assert new_cap == 5691
 
 
 # ── Agent runner: circuit-breaker cooldown extraction ────────────────────

@@ -648,11 +648,13 @@ def _try_reduce_output_cap_from_error(error_str: str, config: dict) -> int | Non
     except ValueError:
         return None
     # Buffer must absorb provider-side prompt-token-count variance
-    # between attempts. 200 was too tight — observed in the wild that
-    # the same conceptual prompt re-tokenizes ~200 tokens larger on
-    # the retry, which makes the new cap fail by 1 token. 1000 (~3%
-    # of a 32K window, ~0.5% of a 200K window) gives real headroom.
-    SAFETY_BUFFER = 1000
+    # between attempts. Observed in the wild on vLLM-served qwen2.5-72b:
+    # the prompt grows by ~+1000 tokens between the original attempt
+    # and the retry (vLLM appears to reserve decoder priming budget
+    # that's not counted in the initial validation message). 2500
+    # (~7.6% of 32K, ~1.25% of 200K) gives real headroom for that
+    # behavior across providers we've seen.
+    SAFETY_BUFFER = 2500
     new_cap = model_max - prompt_tokens - SAFETY_BUFFER
     # Don't return a cap that's even smaller than what's currently set
     # — that would be a no-op or a regression.

@@ -326,3 +326,247 @@ register_tool(ToolDef(
     read_only=True,
     concurrent_safe=True,
 ))
+
+
+# ── SummarizeLargeFile — multi-agent map-reduce for files that overflow context
+
+_TOKENS_PER_CHAR = 1 / 2.8   # matches compaction.estimate_tokens
+_SUMMARIZE_RESERVED_TOKENS = 8500   # system + template + output cap + safety
+_SUMMARIZE_MIN_CHUNK_TOKENS = 2000
+
+
+def _estimate_text_tokens(text: str) -> int:
+    """Rough conservative token estimator for plain text. Matches the
+    chars/2.8 ratio compaction.estimate_tokens uses."""
+    return int(len(text) * _TOKENS_PER_CHAR)
+
+
+def _read_file_for_summary(file_path: str, config: dict) -> str:
+    """Read content from a file, dispatching to the right reader based on
+    extension. Returns the raw text or a string starting with 'Error:' on
+    failure."""
+    p = Path(file_path)
+    if not p.exists():
+        return f"Error: file not found: {file_path}"
+    if p.is_dir():
+        return f"Error: {file_path} is a directory, not a file"
+    suffix = p.suffix.lower()
+    if suffix == ".pdf":
+        # Reuse the existing PDF reader; "all pages" by default
+        return _read_pdf({"file_path": str(p)}, config)
+    # Plain text / code / markdown / etc.
+    try:
+        return p.read_text("utf-8", errors="replace")
+    except Exception as e:
+        return f"Error reading {file_path}: {type(e).__name__}: {e}"
+
+
+def _summarize_chunk_via_llm(text: str, focus: str, config: dict,
+                               mode: str = "single",
+                               chunk_idx: int = 0,
+                               total_chunks: int = 0) -> str:
+    """Run a single LLM call to summarize one chunk (or merge chunk
+    summaries). Uses the session's current model with no_tools=True so
+    no recursive tool calls happen.
+
+    Returns the summary text, or an `[error: ...]` marker string on
+    failure (so a single chunk failure doesn't sink the whole map-reduce)."""
+    from providers import stream, TextChunk
+
+    focus_clause = f" Focus on: {focus}." if focus else ""
+
+    if mode == "single":
+        sys_msg = (
+            "You are summarizing a document for a researcher. Be concrete, "
+            "specific, comprehensive. Preserve all named entities, numbers, "
+            "and citations."
+        )
+        user_msg = (
+            f"Summarize this document.{focus_clause}\n\n"
+            f"Cover: title/author/venue, problem, method, results, "
+            f"limitations, connections to related work. Use Markdown headings.\n\n"
+            f"{text}"
+        )
+    elif mode == "map":
+        sys_msg = (
+            f"You are summarizing chunk {chunk_idx} of {total_chunks} of a "
+            f"long document. Each chunk is a contiguous slice; you may not "
+            f"see the whole document. Capture EVERY concrete fact, claim, "
+            f"number, named entity, and method described in your chunk. A "
+            f"later 'reduce' step will merge your summary with the others, "
+            f"so prioritize specifics over polish."
+        )
+        user_msg = (
+            f"Summarize chunk {chunk_idx}/{total_chunks}.{focus_clause}\n\n"
+            f"Be exhaustive on specifics — names, numbers, results, citations, "
+            f"section headings if present. Output as Markdown bullets.\n\n"
+            f"{text}"
+        )
+    else:  # mode == "reduce"
+        sys_msg = (
+            "You are merging summaries of consecutive chunks of a single "
+            "document into ONE unified summary. The chunks were processed "
+            "independently; reconcile any tension; deduplicate; preserve "
+            "all specifics (numbers, names, citations)."
+        )
+        user_msg = (
+            f"Below are summaries of consecutive sections of a single "
+            f"document.{focus_clause}\n\nMerge them into ONE coherent "
+            f"summary covering: title/author/venue, problem, method, "
+            f"results, limitations, connections to related work. Use "
+            f"Markdown headings.\n\n{text}"
+        )
+
+    out: list[str] = []
+    internal = {**config, "no_tools": True}
+    try:
+        for ev in stream(config["model"], sys_msg,
+                          [{"role": "user", "content": user_msg}], [],
+                          internal):
+            if isinstance(ev, TextChunk):
+                out.append(ev.text)
+    except Exception as e:
+        return f"[chunk-summarize error: {type(e).__name__}: {str(e)[:200]}]"
+    return "".join(out).strip() or "[chunk-summarize: empty response]"
+
+
+def _plan_chunks(content: str, model_ctx: int) -> list[str]:
+    """Split `content` into N chunks each fitting within
+    `(model_ctx - reserved) / chars_per_token` chars, with a small overlap
+    for continuity. N scales with content size:
+        ≤1 chunk-budget       → 1 chunk
+        ~3 chunk-budgets      → 3 chunks
+        ~10 chunk-budgets     → 10 chunks
+        etc. (no hard cap — grows with file)
+    """
+    n_tokens = _estimate_text_tokens(content)
+    chunk_token_budget = max(_SUMMARIZE_MIN_CHUNK_TOKENS,
+                              model_ctx - _SUMMARIZE_RESERVED_TOKENS)
+    if n_tokens <= chunk_token_budget:
+        return [content]
+    # Compute target char-size per chunk so all chunks roughly equal.
+    chunk_char_budget = int(chunk_token_budget / _TOKENS_PER_CHAR)
+    n_chunks = (n_tokens // chunk_token_budget) + 1
+    overlap_chars = 200
+    base_size = (len(content) + (n_chunks - 1) * overlap_chars) // n_chunks
+    chunks: list[str] = []
+    pos = 0
+    while pos < len(content):
+        end = min(pos + base_size + overlap_chars, len(content))
+        chunks.append(content[pos:end])
+        if end >= len(content):
+            break
+        pos = end - overlap_chars
+    return chunks
+
+
+def _summarize_large_file(params: dict, config: dict) -> str:
+    """Multi-agent map-reduce summarization of a potentially large file.
+
+    1. Reads the file (PDF / text / code) — handles big files that would
+       overflow Read's normal output.
+    2. Estimates token count vs the model's context window.
+    3. If it fits → single-shot summary.
+       Else → chunks adaptively (number scales with file size), summarizes
+       each chunk in parallel via sub-LLM calls (ThreadPoolExecutor with
+       up to 8 workers), then a reduce step merges them into one unified
+       summary.
+
+    Per-chunk summarization failures are logged inline as
+    `[chunk N: error]` markers so one flaky source doesn't sink the
+    whole job."""
+    from concurrent.futures import ThreadPoolExecutor
+    from compaction import get_context_limit
+
+    file_path = params.get("file_path", "")
+    if not file_path:
+        return "Error: missing required parameter 'file_path'"
+    focus = params.get("focus", "") or ""
+
+    content = _read_file_for_summary(file_path, config)
+    if content.startswith("Error"):
+        return content
+
+    model = config.get("model", "")
+    model_ctx = get_context_limit(model) or 32768
+    chunks = _plan_chunks(content, model_ctx)
+    n_chunks = len(chunks)
+
+    p = Path(file_path)
+    n_chars = len(content)
+    n_tokens_est = _estimate_text_tokens(content)
+
+    if n_chunks == 1:
+        summary = _summarize_chunk_via_llm(chunks[0], focus, config, mode="single")
+        return (
+            f"Summary of `{p.name}` (single-shot, ~{n_tokens_est:,} tokens "
+            f"in {n_chars:,} chars; model context {model_ctx:,}):\n\n"
+            f"{summary}"
+        )
+
+    # Map: parallel summarize chunks
+    max_workers = min(n_chunks, 8)
+    chunk_summaries: list[str | None] = [None] * n_chunks
+
+    def _do_chunk(i_text):
+        i, text = i_text
+        return i, _summarize_chunk_via_llm(
+            text, focus, config, mode="map",
+            chunk_idx=i + 1, total_chunks=n_chunks,
+        )
+
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        for i, summary_text in ex.map(_do_chunk, enumerate(chunks)):
+            chunk_summaries[i] = summary_text
+
+    # Reduce
+    merged_input = "\n\n".join(
+        f"=== Chunk {i + 1}/{n_chunks} ===\n{s}"
+        for i, s in enumerate(chunk_summaries) if s is not None
+    )
+    final = _summarize_chunk_via_llm(merged_input, focus, config, mode="reduce")
+
+    return (
+        f"Summary of `{p.name}` (multi-agent map-reduce: {n_chunks} chunks, "
+        f"~{n_tokens_est:,} tokens in {n_chars:,} chars; model context "
+        f"{model_ctx:,}; {max_workers} parallel workers):\n\n{final}"
+    )
+
+
+register_tool(ToolDef(
+    name="SummarizeLargeFile",
+    schema={
+        "name": "SummarizeLargeFile",
+        "description": (
+            "Summarize a file that may be too large to fit in your context "
+            "window. Reads the file (PDF / txt / md / code), splits it "
+            "into N chunks adaptive to file size (1 chunk if it fits, "
+            "more for larger files — no hard cap), summarizes each chunk "
+            "in parallel via sub-LLM calls (up to 8 workers), then merges "
+            "into one unified summary. Use this for papers, books, long "
+            "logs, large code files, or any document where Read would "
+            "overflow the context window. Returns a single coherent "
+            "summary as the tool result."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "file_path": {
+                    "type": "string",
+                    "description": "Absolute path to the file to summarize.",
+                },
+                "focus": {
+                    "type": "string",
+                    "description": (
+                        "Optional focus area for the summary "
+                        "(e.g. 'methodology and benchmarks', 'security risks')."
+                    ),
+                },
+            },
+            "required": ["file_path"],
+        },
+    },
+    func=_summarize_large_file,
+    read_only=True,
+    concurrent_safe=True,
+))

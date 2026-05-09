@@ -2073,6 +2073,55 @@ def cmd_ssj(args: str, state, config) -> bool:
     return True
 
 
+# ── Summarize (multi-agent map-reduce) ────────────────────────────────────
+
+
+def cmd_summarize(args: str, _state, config) -> bool:
+    """Summarize a (potentially large) file via multi-agent map-reduce.
+
+    Usage:
+        /summarize <abs-path> [focus phrase]
+
+    Calls the same SummarizeLargeFile tool the /agent flows use, but
+    inline so the user gets the summary printed directly. Number of
+    chunks is adaptive to file size — works on files of any size."""
+    parts = args.strip().split(maxsplit=1)
+    if not parts:
+        info("Usage: /summarize <absolute-path> [focus phrase]")
+        info("Reads any size file (PDF / txt / md / code), chunks adaptively,")
+        info("summarizes each chunk in parallel via sub-LLM calls, merges into")
+        info("one unified summary. No context-window limit.")
+        return True
+
+    file_path = parts[0]
+    focus = parts[1] if len(parts) > 1 else ""
+
+    p = Path(file_path)
+    if not p.is_absolute():
+        # Resolve relative to cwd for convenience
+        p = Path.cwd() / file_path
+    if not p.exists():
+        err(f"File not found: {p}")
+        return True
+
+    info(clr(f"Summarizing {p.name} via multi-agent map-reduce…", "dim"))
+    if focus:
+        info(clr(f"  Focus: {focus}", "dim"))
+    _start_tool_spinner()
+    from tools.files import _summarize_large_file
+    try:
+        result = _summarize_large_file(
+            {"file_path": str(p), "focus": focus}, config,
+        )
+    finally:
+        _stop_tool_spinner()
+
+    print()
+    print(result)
+    print()
+    return True
+
+
 # ── Memory ─────────────────────────────────────────────────────────────────
 
 def cmd_memory(args: str, _state, config) -> bool:
