@@ -138,7 +138,7 @@ PROVIDERS: dict[str, dict] = {
         "type":       "openai",
         "api_key_env": "CUSTOM_API_KEY",
         "base_url":   None,   # read from config["custom_base_url"]
-        "context_limit": 128000,
+        "context_limit": 256000,
         "models": [],
     },
     # LiteLLM — universal adapter routing to 100+ providers (OpenAI,
