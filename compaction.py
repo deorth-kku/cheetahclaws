@@ -232,6 +232,10 @@ def sanitize_history(messages: list) -> list:
         cleaned.append(m)
 
     _strip_unanswered()
+    if len(cleaned) == len(messages):
+        # No orphans removed — return the original list so callers don't
+        # get a new reference that would invalidate llama.cpp KV cache.
+        return messages
     return cleaned
 
 
