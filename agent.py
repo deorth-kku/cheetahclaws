@@ -154,12 +154,15 @@ def run(
         # Defends against compaction artifacts, crashed tool execs, or any
         # other source of orphan 'tool' messages that OpenAI-compatible
         # providers (DeepSeek et al.) reject with a 400.
-        _before_len = len(state.messages)
-        state.messages = sanitize_history(state.messages)
-        if len(state.messages) != _before_len:
+        # NOTE: sanitize_history always returns a new list, so we must check
+        # whether it actually removed anything before reassigning — the new
+        # list reference invalidates llama.cpp KV cache.
+        cleaned = sanitize_history(state.messages)
+        if len(cleaned) < len(state.messages):
             _log.warn("history_sanitized",
                       session_id=session_id,
-                      removed=_before_len - len(state.messages))
+                      removed=len(state.messages) - len(cleaned))
+            state.messages = cleaned
 
         # ── Quota check — before spending tokens ──────────────────────────
         # Project this request's INPUT so a single large (tool-heavy) call can't
