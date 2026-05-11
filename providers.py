@@ -360,11 +360,13 @@ _custom_ctx_cache: dict[str, dict[str, int]] = {}
 
 def _fetch_custom_model_limit(base_url: str, model: str, api_key: str) -> int | None:
     """Query /v1/models on a custom (vLLM/etc.) endpoint for the TOTAL context
-    window (max_model_len). Returns None on any failure. Results cached per
-    base_url. Also backfills PROVIDERS['custom']['context_limit'] in-memory the
-    first time it succeeds, so compaction.get_context_limit() — which doesn't
-    have direct access to base_url — sees the real limit instead of the stale
-    128000 default.
+    window. Supports max_model_len (vLLM), context_window, and n_ctx (llama.cpp)
+    fields. Returns None on any failure. Results cached per base_url.
+
+    When model is "default", returns the first model's limit. Also backfills
+    PROVIDERS['custom']['context_limit'] in-memory the first time it succeeds,
+    so compaction.get_context_limit() — which doesn't have direct access to
+    base_url — sees the real limit instead of the stale 128000 default.
     """
     cache = _custom_ctx_cache.setdefault(base_url, {})
     if model in cache:
@@ -378,10 +380,20 @@ def _fetch_custom_model_limit(base_url: str, model: str, api_key: str) -> int | 
             data = json.loads(resp.read())
         for entry in data.get("data", []):
             mid = entry.get("id", "")
+            # vLLM: max_model_len or context_window
             limit = entry.get("max_model_len") or entry.get("context_window")
+            # llama.cpp: n_ctx inside meta
+            if not limit:
+                meta = entry.get("meta", {})
+                if isinstance(meta, dict):
+                    limit = meta.get("n_ctx")
             if limit:
                 cache[mid] = int(limit)
-        result = cache.get(model)
+        # "default" → use first model's limit
+        if model == "default" and cache:
+            result = next(iter(cache.values()))
+        else:
+            result = cache.get(model)
         # Backfill provider-level default with the most conservative value seen.
         # Compaction reads PROVIDERS[provider]['context_limit'] without knowing
         # base_url, so this makes the threshold see the real limit.
