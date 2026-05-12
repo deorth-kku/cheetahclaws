@@ -470,6 +470,11 @@ Claude Code is a powerful, production-grade AI coding assistant — but its sour
 | **MiniMax** | `MiniMax-VL-01` | 1M | Vision + language | `MINIMAX_API_KEY` |
 | **MiniMax** | `abab6.5s-chat` | 256k | Fast, cost-efficient | `MINIMAX_API_KEY` |
 | **MiniMax** | `abab6.5-chat` | 256k | Balanced quality | `MINIMAX_API_KEY` |
+| **AWS Bedrock** _(via litellm)_ | `litellm/bedrock/<model-id>` | varies | SigV4-signed access to Claude, Llama, Mistral on Bedrock | boto3 chain (`AWS_*`) |
+| **Azure OpenAI** _(via litellm)_ | `litellm/azure/<deployment-id>` | varies | Deployment-id routing + `api_version` pinning | `AZURE_API_KEY`, `AZURE_API_BASE`, `AZURE_API_VERSION` |
+| **Google Vertex AI** _(via litellm)_ | `litellm/vertex_ai/<model>` | varies | Service-account JWT auth | `GOOGLE_APPLICATION_CREDENTIALS`, `VERTEXAI_PROJECT`, `VERTEXAI_LOCATION` |
+
+> **`litellm/` adapter:** routes to 100+ providers behind a single SDK; primarily useful when the upstream needs auth gymnastics (Bedrock SigV4, Azure deployment routing, Vertex service-account JWTs). For plain OpenAI-shaped endpoints, prefer the zero-dependency `custom/` adapter. Install with `pip install ".[litellm]"`. See [`docs/guides/recipes.md`](docs/guides/recipes.md#alternative-cloud-providers-with-non-trivial-auth-via-the-litellm-provider).
 
 ### Open-Source (Local via Ollama)
 
@@ -566,6 +571,7 @@ pip install ".[browser]"            # headless browser for JS-rendered pages (pl
 pip install ".[files]"              # PDF + Excel reading (pymupdf, openpyxl)
 pip install ".[ocr]"                # image OCR (pytesseract, Pillow)
 pip install ".[trading]"            # trading agent (yfinance, rank-bm25)
+pip install ".[litellm]"            # AWS Bedrock / Azure / Vertex auth via litellm
 pip install ".[all]"                # everything above
 ```
 
@@ -707,6 +713,42 @@ cheetahclaws --model minimax/MiniMax-Text-01
 cheetahclaws --model minimax/MiniMax-VL-01
 cheetahclaws --model minimax/abab6.5s-chat
 ```
+
+### LiteLLM (AWS Bedrock / Azure / Vertex AI)
+
+Use the `litellm/` prefix when the upstream needs auth that's painful to
+wire by hand — **AWS Bedrock SigV4 signing**, **Azure OpenAI deployment
+routing**, or **Google Vertex AI service-account JWTs**. For plain
+OpenAI-shaped endpoints (vLLM, LM Studio, TGI, Together, Groq, …) prefer
+the zero-dependency `custom/` adapter from Option C below.
+
+```bash
+pip install ".[litellm]"
+
+# AWS Bedrock — uses your boto3 credential chain (AWS_PROFILE, ~/.aws/
+# credentials, IAM role on EC2). No explicit api_key needed.
+export AWS_REGION=us-east-1
+cheetahclaws --model litellm/bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0
+
+# Azure OpenAI — deployment-id routing via api_base + api_version pair.
+export AZURE_API_KEY=...
+export AZURE_API_BASE=https://my-resource.openai.azure.com
+export AZURE_API_VERSION=2024-10-01-preview
+cheetahclaws --model litellm/azure/my-gpt4o-deployment
+
+# Google Vertex AI — Application Default Credentials.
+export GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+export VERTEXAI_PROJECT=my-project
+export VERTEXAI_LOCATION=us-central1
+cheetahclaws --model litellm/vertex_ai/gemini-2.0-flash
+```
+
+The model string format is **`litellm/<provider>/<model>`** — the first
+segment routes to this adapter, everything after is passed verbatim to
+`litellm.completion(model=...)`. See [LiteLLM docs](https://docs.litellm.ai/docs/providers)
+for the full list of 100+ supported providers, and
+[`docs/guides/recipes.md`](docs/guides/recipes.md#alternative-cloud-providers-with-non-trivial-auth-via-the-litellm-provider)
+for the troubleshooting table.
 
 ---
 
