@@ -398,7 +398,7 @@ def _fetch_custom_model_limit(base_url: str, model: str, api_key: str) -> int | 
     try:
         url = base_url.rstrip("/") + "/models"
         req = urllib.request.Request(
-            url, headers={"Authorization": f"Bearer {api_key or 'dummy'}"}
+            url, headers={"Authorization": f"Bearer {api_key or 'dummy'}","User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"}
         )
         with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read())
@@ -1076,7 +1076,7 @@ def stream_openai_compat(
 ) -> Generator:
     """Stream from any OpenAI-compatible API. Yields TextChunk, then AssistantTurn."""
     from openai import OpenAI
-    client = OpenAI(api_key=api_key or "dummy", base_url=base_url)
+    client = OpenAI(api_key=api_key or "dummy", base_url=base_url, default_headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"})
 
     oai_messages = [{"role": "system", "content": system}] + messages_to_openai(messages)
 
