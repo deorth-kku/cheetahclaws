@@ -49,6 +49,9 @@ PROVIDERS: dict[str, dict] = {
         "models": [
             "gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4.1", "gpt-4.1-mini",
             "gpt-5", "gpt-5-nano", "gpt-5-mini",
+            "gpt-5.2", "gpt-5.5", "gpt-5.4", "gpt-5.4-mini",
+            "gpt-5.3-codex", "gpt-5.3-codex-spark",
+            "codex-mini-latest",
             "o4-mini", "o3", "o3-mini", "o1", "o1-mini",
         ],
     },
@@ -201,6 +204,14 @@ COSTS = {
     "gpt-4o":                   (2.5,  10.0),
     "gpt-4o-mini":              (0.15,  0.6),
     "o3-mini":                  (1.1,   4.4),
+    # GPT-5.x series — pricing placeholders (verify with OpenAI before billing UX)
+    "gpt-5.2":         (0.0, 0.0),
+    "gpt-5.5":         (0.0, 0.0),
+    "gpt-5.4":         (0.0, 0.0),
+    "gpt-5.4-mini":    (0.0, 0.0),
+    "gpt-5.3-codex":   (0.0, 0.0),
+    "gpt-5.3-codex-spark": (0.0, 0.0),
+    "codex-mini-latest": (0.0, 0.0),
     "gemini-2.0-flash":         (0.075, 0.3),
     "gemini-1.5-pro":           (1.25,  5.0),
     "gemini-2.5-pro-preview-03-25": (1.25, 10.0),
@@ -315,6 +326,14 @@ _MODEL_OUTPUT_LIMITS: dict[str, int] = {
     "gpt-4.1":     32768,
     "gpt-4.1-mini":32768,
     "gpt-5":       32768,
+    # GPT-5.x series
+    "gpt-5.2":             128000,
+    "gpt-5.5":             128000,
+    "gpt-5.4":             128000,
+    "gpt-5.4-mini":        128000,
+    "gpt-5.3-codex":       128000,
+    "gpt-5.3-codex-spark":  32000,
+    "codex-mini-latest":   100000,
     "o1":          32768,
     "o3":          100000,
     "o4-mini":     100000,
@@ -380,6 +399,14 @@ _MODEL_CONTEXT_LIMITS: dict[str, int] = {
     "codellama":                   16384,
     # Llava (vision)
     "llava":                       4096,
+    # OpenAI GPT-5.x series
+    "gpt-5.2":             400000,
+    "gpt-5.5":            1050000,
+    "gpt-5.4":            1050000,
+    "gpt-5.4-mini":        400000,
+    "gpt-5.3-codex":       400000,
+    "gpt-5.3-codex-spark": 128000,
+    "codex-mini-latest":   200000,
 }
 
 # Cache: base_url → {model_id → max_model_len}
