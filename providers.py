@@ -1111,12 +1111,12 @@ def stream_openai_compat(
     # False = explicit OFF (user toggled via /thinking).  Only the explicit-OFF
     # case injects the disable toggle.  `is False` is intentional: distinguishes
     # explicit False from None.
-    if _prov == "deepseek":
-        if config.get("thinking") is False:
-            kwargs.setdefault("extra_body", {})["thinking"] = {"type": "disabled"}
-        eff = config.get("reasoning_effort")
-        if eff:
-            kwargs["reasoning_effort"] = eff
+    if config.get("thinking") is False:
+        kwargs.setdefault("extra_body", {})["thinking"] = {"type": "disabled"}
+    eff = config.get("reasoning_effort")
+    if eff:
+        kwargs["reasoning_effort"] = eff
+       
     _effective_mt = resolve_max_tokens(config, _prov, model, base_url, api_key)
     if _effective_mt:
         # Further cap by provider-level max_completion_tokens if present
