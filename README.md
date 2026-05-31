@@ -8,7 +8,7 @@ English | [中文](docs/i18n/README.CN.MD) | [한국어](docs/i18n/README.KO.MD)
   </a>
 
   
-<h2 align="center" style="font-size: 30px;"><strong><em>CheetahClaws</em></strong>: A Fast, Easy-to-Use, Production-Ready, Python-Native Personal AI Assistant for Any Model, Inspired by OpenClaw and Claude Code, Built to Work for You Autonomously 24/7</h2>
+<h2 align="center" style="font-size: 30px;"><strong><em>CheetahClaws</em></strong>: A Fast, Easy-to-Use, Agent Infrastructure for Long-Horizon, Multi-Model, Tool-Using AI Systems</h2>
 <p align="center">
     <a href="https://cheetahclaws.github.io/">Website</a>
     ·
@@ -1380,7 +1380,7 @@ If you find the repository useful, please cite the study
 }
 
 @article{cheetahclaws2026,
-  title={CheetahClaws: An Extensible, Python-Native Agent System for Autonomous Multi-Model Workflows},
+  title={CheetahClaws: Agent Infrastructure for Long-Horizon, Multi-Model, Tool-Using AI Systems},
   author={CheetahClaws Team},
   journal={github},
   year={2026}
