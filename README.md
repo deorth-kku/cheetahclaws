@@ -12,7 +12,7 @@ English | [中文](docs/i18n/README.CN.MD) | [한국어](docs/i18n/README.KO.MD)
 <p align="center">
     <a href="https://cheetahclaws.github.io/">Website</a>
     ·
-    <a href="https://arxiv.org/pdf/2605.26112">Brief Intro</a>
+    <a href="https://arxiv.org/pdf/2605.26112">Scaling the Harness</a>
     ·
     <a href="https://github.com/SafeRL-Lab/cheetahclaws/issues">Issue</a>
     ·
