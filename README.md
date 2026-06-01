@@ -51,7 +51,7 @@ For more news, see [here](docs/news.md).
 
 # CheetahClaws
 
-CheetahClaws: **A Lightweight** and **Easy-to-Use** Python Reimplementation of Claude Code **Supporting Any Model**, such as Claude, GPT, Gemini, Kimi, Qwen, Zhipu, DeepSeek, MiniMax, and local open-source models via Ollama or any OpenAI-compatible endpoint.
+CheetahClaws: **A Lightweight** and **Easy-to-Use** Python native, **Supporting Any Model**, such as Claude, GPT, Gemini, Kimi, Qwen, Zhipu, DeepSeek, MiniMax, and local open-source models via Ollama or any OpenAI-compatible endpoint.
 
 ---
 
