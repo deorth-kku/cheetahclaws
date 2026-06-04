@@ -39,7 +39,8 @@ Other install methods: [pip install](#alternative-install-with-pip) | [uv instal
 
 ## 🔥🔥🔥 News (Pacific Time)
 
-- May 31, 2026 (latest): **QQ bot bridge — `/qq` connects cheetahclaws to QQ groups + C2C private chats via the official `qq-botpy` SDK (PR #121).** Details: [docs/guides/bridges.md](docs/guides/bridges.md#qq-bridge) · [docs/news.md](docs/news.md).
+- June 4, 2026 (latest): **Context-window override — the prompt % and compaction follow a settable context length.** New `/config context_window=<N>` overrides the model's context window (`0` = default), distinct from `max_tokens` (the output cap). One value drives the prompt `%`, `/context`, the compaction trigger, and the per-call output cap consistently — read live, so switching model or window updates the `%` with no restart. Details: [docs/guides/reference.md](docs/guides/reference.md) · [docs/news.md](docs/news.md).
+- May 31, 2026: **QQ bot bridge — `/qq` connects cheetahclaws to QQ groups + C2C private chats via the official `qq-botpy` SDK (PR #121).** Details: [docs/guides/bridges.md](docs/guides/bridges.md#qq-bridge) · [docs/news.md](docs/news.md).
 - May 12, 2026: **Security hardening sweep — env-var bot tokens, web CSRF cookie, terminal session owner-binding, and plugin/MCP/filesystem sandboxing (two CRITICAL + HIGH rounds, 2347 tests green).** Details: [docs/guides/security.md](docs/guides/security.md) · [docs/news.md](docs/news.md).
 - May 12, 2026: **Daemon foundation roadmap — all nine F-1…F-9 items landed: subprocess agent runners, on-crash restart policy, daemonized Telegram/Slack/WeChat bridges, and budget guardrails.** Details: [docs/news.md](docs/news.md).
 

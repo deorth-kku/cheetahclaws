@@ -51,6 +51,7 @@ Type `/` and press **Tab** to see all commands with descriptions. Continue typin
 | `/model <name>` | Switch model (takes effect immediately) |
 | `/config` | Show all current config values |
 | `/config key=value` | Set a config value (persisted to disk). v3.05.78+ parses JSON values: `["a","b"]`, `{"k":"v"}`, signed numbers, quoted strings — list/dict configs no longer get silently saved as literal strings. |
+| `/config context_window=<N>` | Override the context window (tokens) for the session. `0` = use the model's default. Drives the prompt `%` indicator, `/context`, the compaction trigger, **and** the per-call output-token cap — all consistently. Distinct from `max_tokens` (which is the **output** cap, not the window). Bidirectional: a smaller value forces earlier compaction; a larger value corrects a stale default. Read live, so it takes effect on the next prompt (no restart). Warns if set above the model's real window (that would disable compaction and the API may reject oversized prompts). |
 | `/save` | Save session (auto-named by timestamp) |
 | `/save <filename>` | Save session to named file |
 | `/load` | Interactive list grouped by date; enter number, `1,2,3` to merge, or `H` for full history |
@@ -58,7 +59,7 @@ Type `/` and press **Tab** to see all commands with descriptions. Continue typin
 | `/resume` | Restore the last auto-saved session (`mr_sessions/session_latest.json`) |
 | `/resume <filename>` | Load a specific file from `mr_sessions/` (or absolute path) |
 | `/history` | Print full conversation history |
-| `/context` | Show message count and token estimate |
+| `/context` | Show message count, token estimate, and context-window usage (honors a `context_window` override) |
 | `/cost` | Show token usage and estimated USD cost |
 | `/verbose` | Toggle verbose mode (tokens + thinking) |
 | `/thinking` | Toggle Extended Thinking (Claude only) |
@@ -319,6 +320,7 @@ Keys are saved to `~/.cheetahclaws/config.json` and loaded automatically on next
 {
   "model": "qwen/qwen-max",
   "max_tokens": 8192,
+  "context_window": 0,
   "permission_mode": "auto",
   "verbose": false,
   "thinking": false,
