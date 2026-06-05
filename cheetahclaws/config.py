@@ -35,7 +35,7 @@ DEFAULTS = {
     "thinking":         None,
     "thinking_budget":  10000,
     "custom_base_url":  "",       # for "custom" provider
-    "max_tool_output":  32000,
+    "max_tool_output":  None,
     "max_agent_depth":  3,
     "max_concurrent_agents": 3,
     "session_daily_limit":   10000,    # max sessions kept per day in daily/
