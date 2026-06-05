@@ -3,17 +3,30 @@ from __future__ import annotations
 
 import difflib
 from pathlib import Path
+import chardet
+
+def _detect_encoding(data: bytes) -> str: 
+    sample = data[:8192] if len(data) > 8192 else data
+
+    """Detect encoding from bytes. Returns encoding name or raises on binary."""
+    if b'\x00' in sample:
+        raise OSError(f"File appears to be binary (contains NUL bytes)")
 
 
-def _read_preserving_newlines(p: Path) -> str:
-    """Read a text file without newline translation.
+    result = chardet.detect(sample)
+    
+    if result['confidence'] < 0.1:
+        raise OSError(f"File does not appear to be text (chatdet result {result})")
+    
+    return result.get('encoding') or 'utf-8'
 
-    Path.read_text gained a `newline=` parameter only in Python 3.14; the
-    project supports 3.10+, so we use open() which has accepted `newline=`
-    since the pathlib API was introduced.
-    """
-    with p.open(encoding="utf-8", errors="replace", newline="") as f:
-        return f.read()
+
+def _read_preserving_newlines(path:  Path) -> str:
+    """Read file with auto-detected encoding, preserving original line endings."""
+    path = Path(path)
+    data = path.read_bytes()
+    encoding = _detect_encoding(data)
+    return data.decode(encoding)
 
 
 # ── Diff helpers ──────────────────────────────────────────────────────────
