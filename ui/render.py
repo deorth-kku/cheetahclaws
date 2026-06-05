@@ -154,14 +154,104 @@ def _has_diff(text: str) -> bool:
 
 _accumulated_text: list[str] = []   # buffer text during streaming
 _current_live = None                # active Rich Live instance (one at a time)
-_RICH_LIVE = True                   # set False (via config rich_live=false) to disable
+_RICH_LIVE = True                   # True only in "live" mode (in-place redraw)
 _plain_streaming_response = False   # current response has fallen back from Live
 _live_shows_full = False            # True when the live frame holds the whole response (not a tail window)
 
+# ── Adaptive streaming mode ────────────────────────────────────────────────
+# Three tiers, chosen per-device (see auto_stream_mode):
+#   "live"   — full in-place Rich Live redraw. Best experience, but the
+#              cursor-up rewrite breaks on some terminals (Apple Terminal can't
+#              erase above the scroll boundary; flaky network PTYs duplicate
+#              frames), so it is reserved for terminals known to handle it.
+#   "commit" — append-only progressive Markdown. Completed blocks are rendered
+#              and printed permanently (never redrawn). Pure append-only: it
+#              issues NO cursor-up / erase sequences at all, so it can never
+#              leave duplicate frames — correct over SSH / Apple Terminal /
+#              pipes / CJK-wide text alike, while still showing rich Markdown
+#              block by block. The universal default for non-"live" terminals.
+#   "plain"  — raw token stream (only when Rich is unavailable).
+_STREAM_MODE = "live" if _RICH else "plain"
+_commit_idx = 0                     # chars of the response already committed (rendered + printed)
+
+
+def set_stream_mode(mode: str) -> None:
+    """Select the streaming tier ('live' | 'commit' | 'plain')."""
+    global _STREAM_MODE, _RICH_LIVE
+    if mode not in ("live", "commit", "plain") or not _RICH:
+        mode = mode if (mode == "plain") else ("commit" if _RICH else "plain")
+    _STREAM_MODE = mode
+    _RICH_LIVE = (mode == "live")
+
+
 def set_rich_live(enabled: bool) -> None:
-    """Called from repl.py to apply the rich_live config setting."""
-    global _RICH_LIVE
-    _RICH_LIVE = _RICH and enabled
+    """Back-compat shim for the old boolean rich_live config.
+
+    True  → full in-place Live. False → 'commit' (still rich, just append-only
+    instead of plain raw tokens, which is a strict UX upgrade over the old
+    behaviour). New code should call set_stream_mode / auto_stream_mode."""
+    set_stream_mode("live" if (enabled and _RICH) else "commit")
+
+
+# Terminal emulators known to handle in-place cursor-up redraw reliably, even
+# over SSH. Detected via TERM_PROGRAM, TERM, or an emulator-specific env var.
+_GOOD_TERM_PROGRAMS = {
+    "iTerm.app", "WezTerm", "vscode", "ghostty", "rio", "Tabby", "Hyper",
+    "Warp", "kitty",
+}
+
+
+def auto_stream_mode(config: dict | None = None) -> str:
+    """Pick the best streaming tier for the current device.
+
+    Priority: explicit config override → capability detection. Capable
+    terminals (local TTYs and modern emulators, incl. over SSH) get 'live';
+    everything else with Rich gets the safe-but-rich 'commit' tier; only a
+    missing Rich install falls all the way back to 'plain'.
+    """
+    import os as _os
+    import platform as _plat
+
+    cfg = config or {}
+    explicit = cfg.get("stream_mode")
+    if explicit in ("live", "commit", "plain"):
+        return explicit
+    rl = cfg.get("rich_live")
+    if rl is True:
+        return "live"
+    if rl is False:
+        return "commit"
+
+    if not _RICH or console is None:
+        return "plain"
+    if getattr(console, "is_dumb_terminal", False):
+        return "commit"
+    # Not a real TTY (piped / redirected / captured): append-only, no cursor games.
+    if not getattr(console, "is_terminal", False):
+        return "commit"
+
+    term = _os.environ.get("TERM", "") or ""
+    term_program = _os.environ.get("TERM_PROGRAM", "") or ""
+    in_ssh = bool(_os.environ.get("SSH_CLIENT") or _os.environ.get("SSH_TTY"))
+    is_apple_terminal = (_plat.system() == "Darwin"
+                         and term_program in ("Apple_Terminal", ""))
+    modern = (
+        term_program in _GOOD_TERM_PROGRAMS
+        or "kitty" in term
+        or "alacritty" in term
+        or bool(_os.environ.get("WT_SESSION"))          # Windows Terminal
+        or bool(_os.environ.get("KITTY_WINDOW_ID"))
+        or bool(_os.environ.get("ALACRITTY_WINDOW_ID"))
+        or bool(_os.environ.get("WEZTERM_PANE"))
+    )
+
+    # Apple Terminal has a real cursor-erase bug → never full Live.
+    if is_apple_terminal:
+        return "commit"
+    # Untrusted network terminal → safe rich commit instead of risky redraw.
+    if in_ssh and not modern:
+        return "commit"
+    return "live"
 
 def _make_renderable(text: str):
     """Return a Rich renderable: Markdown if text contains markup, else plain."""
@@ -257,6 +347,62 @@ def _stop_live(clear: bool = False) -> None:
     _current_live = None
 
 
+# ── Commit-mode streaming (append-only progressive Markdown) ────────────────
+
+def _safe_commit_point(text: str, start: int) -> int:
+    """Return the index just after the last *completed* block at/after `start`.
+
+    A block ends at a blank line ("\\n\\n") that is NOT inside an unclosed code
+    fence. Counting ``` markers in the prefix tells us the fence state, so a
+    fenced code block (which may itself contain blank lines) is only ever
+    committed as a whole once its closing fence arrives — never rendered
+    half-open. Returns `start` when no new complete block is available yet.
+    """
+    best = start
+    i = text.find("\n\n", start)
+    while i != -1:
+        candidate = i + 2
+        if text.count("```", 0, candidate) % 2 == 0:   # fence is closed here
+            best = candidate
+        i = text.find("\n\n", i + 1)
+    return best
+
+
+def _commit_stream() -> None:
+    """Render + permanently print any newly-completed blocks (append-only).
+
+    Issues no cursor movement whatsoever: each completed block is printed once
+    and never touched again, so there is no way to leave a duplicate or stale
+    frame regardless of terminal, network latency, or wide (CJK/emoji) text. The
+    still-incomplete trailing block stays buffered and appears when it closes (or
+    at flush); the spinner conveys liveness in the meantime."""
+    global _commit_idx
+    full = "".join(_accumulated_text)
+    point = _safe_commit_point(full, _commit_idx)
+    if point > _commit_idx:
+        block = full[_commit_idx:point].strip("\n")
+        if block.strip():
+            try:
+                console.print(_make_renderable(block))
+            except Exception:
+                print(block)
+        _commit_idx = point
+
+
+def _commit_flush() -> None:
+    """Render+commit the final trailing block and reset commit state."""
+    global _commit_idx
+    full = "".join(_accumulated_text)
+    tail = full[_commit_idx:].strip("\n")
+    if tail.strip():
+        try:
+            console.print(_make_renderable(tail))
+        except Exception:
+            print(tail)
+    _accumulated_text.clear()
+    _commit_idx = 0
+
+
 def stream_text(chunk: str) -> None:
     """Buffer chunk; update Live in-place when Rich available, else print directly.
 
@@ -274,7 +420,20 @@ def stream_text(chunk: str) -> None:
     the scrollback. It is re-committed in full when the response finishes — including
     on Ctrl-C, since the REPL flushes on interrupt — so nothing is ever lost, it is
     just not visible live until completion.
+
+    Mode dispatch: "plain" prints raw tokens, "commit" delegates to the
+    append-only progressive-Markdown renderer, and "live" (below) does the
+    in-place Rich Live redraw described above.
     """
+    if not _RICH or _STREAM_MODE == "plain":
+        print(chunk, end="", flush=True)
+        return
+
+    if _STREAM_MODE == "commit":
+        _accumulated_text.append(chunk)
+        _commit_stream()
+        return
+
     if _plain_streaming_response:
         print(chunk, end="", flush=True)
         return
@@ -325,6 +484,9 @@ def stream_thinking(chunk: str, verbose: bool):
 def flush_response() -> None:
     """Commit buffered text to screen, then reset per-response streaming state."""
     global _plain_streaming_response, _live_shows_full
+    if _STREAM_MODE == "commit":
+        _commit_flush()
+        return
     full = "".join(_accumulated_text)
     _accumulated_text.clear()
     if _current_live is not None:

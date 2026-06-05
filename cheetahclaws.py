@@ -203,7 +203,7 @@ from ui.render import (
     render_diff, _has_diff,
     stream_text, stream_thinking, flush_response,
     _start_tool_spinner, _stop_tool_spinner, _change_spinner_phrase,
-    set_spinner_phrase, set_rich_live, set_spinner_tips,
+    set_spinner_phrase, set_rich_live, set_stream_mode, auto_stream_mode, set_spinner_tips,
     print_tool_start, print_tool_end,
     set_quiet, reset_turn_stats, print_turn_summary,
     set_spinner_tokens, print_turn_stats,
@@ -613,7 +613,7 @@ _CMD_META: dict[str, tuple[str, list[str]]] = {
     "load":        ("Load a saved session",               []),
     "history":     ("Show conversation history",          []),
     "search":      ("Search past sessions",               []),
-    "context":     ("Show token-context usage",           []),
+    "context":     ("Visualize context-window usage by category", []),
     "cost":        ("Show cost estimate",                 []),
     "verbose":     ("Toggle verbose output",              []),
     "quiet":       ("Toggle compact tool display",        []),
@@ -974,6 +974,9 @@ def repl(config: dict, initial_prompt: str = None):
         except Exception:
             pass
 
+        # Blank line so the logo sits a little farther below the shell prompt.
+        print()
+
         # Print logo - warm cheetah-gold vertical gradient, plain if color is off.
         if C["reset"]:
             for _ln, _hex in zip(_CHEETAH_LOGO, _CHEETAH_GRADIENT):
@@ -1054,23 +1057,25 @@ def repl(config: dict, initial_prompt: str = None):
 
     query_lock = threading.RLock()
 
-    # Apply rich_live config: disable in-place Live streaming if terminal has issues.
-    # Auto-detect environments where ANSI cursor-up / live-rewrite doesn't work:
-    #   - SSH sessions (cursor-up fails across network PTY)
-    #   - Dumb terminals (no ANSI support)
-    #   - macOS Terminal.app (can't erase above scroll boundary → duplicated output)
-    #   - Screen/tmux over SSH
-    import os as _os, platform as _plat
-    _in_ssh = bool(_os.environ.get("SSH_CLIENT") or _os.environ.get("SSH_TTY"))
-    _is_dumb = (console is not None and getattr(console, "is_dumb_terminal", False))
-    _is_macos_terminal = (_plat.system() == "Darwin"
-                          and _os.environ.get("TERM_PROGRAM", "") in ("Apple_Terminal", ""))
-    _rich_live_default = not _in_ssh and not _is_dumb and not _is_macos_terminal
-    set_rich_live(config.get("rich_live", _rich_live_default))
+    # Pick the streaming tier for this device (see ui.render.auto_stream_mode):
+    #   "live"   — full in-place Rich redraw (capable terminals, incl. modern
+    #              emulators over SSH like iTerm2 / WezTerm / Windows Terminal /
+    #              VSCode / kitty / Alacritty / Ghostty).
+    #   "commit" — append-only progressive Markdown for terminals where cursor-up
+    #              redraw is unsafe (Apple Terminal, unknown SSH PTYs, pipes). Still
+    #              renders rich formatting block-by-block — a big upgrade over the
+    #              old raw-token fallback.
+    #   "plain"  — only when Rich is unavailable.
+    # An explicit `stream_mode` or legacy `rich_live` config value overrides detection.
+    set_stream_mode(auto_stream_mode(config))
 
     # Apply spinner_tips config: rotating Claude-Code-style tips beneath the
     # spinner. Disabled automatically where multi-line cursor moves misbehave
     # (dumb terminals, macOS Terminal.app) so the tip line never garbles output.
+    import os as _os, platform as _plat
+    _is_dumb = (console is not None and getattr(console, "is_dumb_terminal", False))
+    _is_macos_terminal = (_plat.system() == "Darwin"
+                          and _os.environ.get("TERM_PROGRAM", "") in ("Apple_Terminal", ""))
     _spinner_tips_default = not _is_dumb and not _is_macos_terminal
     set_spinner_tips(config.get("spinner_tips", _spinner_tips_default))
 

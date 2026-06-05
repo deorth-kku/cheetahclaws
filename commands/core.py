@@ -83,13 +83,130 @@ def cmd_clear(_args: str, state, config) -> bool:
     return True
 
 
+def _fmt_tokens(n: int) -> str:
+    """Compact human token count: 1m / 200k / 21.2k / 540."""
+    n = int(n)
+    if n >= 1_000_000:
+        s = f"{n / 1_000_000:.1f}m"
+        return s.replace(".0m", "m")
+    if n >= 1_000:
+        s = f"{n / 1_000:.1f}k"
+        return s.replace(".0k", "k")
+    return str(n)
+
+
 def cmd_context(_args: str, state, config) -> bool:
-    msg_chars = sum(len(str(m.get("content", ""))) for m in state.messages)
-    est_tokens = msg_chars // 4
-    info(f"Messages:         {len(state.messages)}")
-    info(f"Estimated tokens: ~{est_tokens:,}")
-    info(f"Model:            {config['model']}")
-    info(f"Max tokens:       {config['max_tokens']:,}")
+    """Visual breakdown of context-window usage by category (Claude-Code style).
+
+    Renders a 20×10 cell grid where each cell represents an equal slice of the
+    model's context window, coloured per category, followed by a legend showing
+    the estimated token cost and percentage of each component.
+    """
+    import sys as _sys
+    from compaction import estimate_tokens, get_context_limit
+    from providers import detect_provider
+
+    model = config.get("model", "unknown")
+    provider = detect_provider(model) if model else ""
+    ctx_limit = get_context_limit(model, config) or 0
+
+    def _est(text: str) -> int:
+        return estimate_tokens([{"role": "system", "content": text}]) if text else 0
+
+    # ── Measure each in-context component ───────────────────────────────────
+    # System prompt = base + env + live command index (everything
+    # build_system_prompt injects EXCEPT memory, which we break out below to
+    # mirror Claude Code's category split).
+    sys_tokens = 0
+    try:
+        import context as _ctx
+        from prompts import pick_base_prompt
+        base = pick_base_prompt(provider, model) if model else pick_base_prompt()
+        sys_tokens = (_est(base)
+                      + _est(_ctx._render_env_block(config))
+                      + _est(_ctx._render_commands_block()))
+    except Exception:
+        try:
+            import context as _ctx
+            sys_tokens = _est(_ctx.build_system_prompt(config))
+        except Exception:
+            sys_tokens = 0
+
+    mem_tokens = 0
+    try:
+        from memory import get_memory_context
+        mem_tokens = _est(get_memory_context())
+    except Exception:
+        mem_tokens = 0
+
+    tool_tokens = 0
+    try:
+        from tool_registry import get_tool_schemas
+        tool_tokens = _est(json.dumps(get_tool_schemas()))
+    except Exception:
+        tool_tokens = 0
+
+    skill_tokens = 0
+    try:
+        from skill import load_skills
+        blob = "\n".join(
+            f"{s.name}: {s.description} {' '.join(getattr(s, 'triggers', []) or [])}"
+            for s in load_skills()
+        )
+        skill_tokens = _est(blob)
+    except Exception:
+        skill_tokens = 0
+
+    msg_tokens = estimate_tokens(getattr(state, "messages", []))
+    msg_count = len(getattr(state, "messages", []))
+
+    cats = [
+        ("System prompt", sys_tokens,   "cyan"),
+        ("System tools",  tool_tokens,  "blue"),
+        ("Memory files",  mem_tokens,   "magenta"),
+        ("Skills",        skill_tokens, "yellow"),
+        ("Messages",      msg_tokens,   "green"),
+    ]
+    used = sum(t for _, t, _ in cats)
+    free = max(0, ctx_limit - used) if ctx_limit else 0
+
+    # ── Build the cell grid ─────────────────────────────────────────────────
+    utf8 = "utf" in (getattr(_sys.stdout, "encoding", "") or "").lower()
+    FULL, EMPTY = ("⛁", "⛶") if utf8 else ("#", ".")
+    COLS, ROWS = 20, 10
+    total_cells = COLS * ROWS
+    per_cell = (ctx_limit / total_cells) if ctx_limit else 0
+
+    cells: list[tuple[str, str]] = []
+    if per_cell:
+        for _name, tok, color in cats:
+            n = int(round(tok / per_cell))
+            cells.extend([(FULL, color)] * n)
+    cells = cells[:total_cells]
+    cells.extend([(EMPTY, "dim")] * (total_cells - len(cells)))
+
+    # ── Render ──────────────────────────────────────────────────────────────
+    print(clr("  Context Usage", "bold"))
+    for r in range(ROWS):
+        row = cells[r * COLS:(r + 1) * COLS]
+        print("  " + " ".join(clr(g, c) for g, c in row))
+
+    pct = (used / ctx_limit * 100) if ctx_limit else 0
+    print()
+    print(f"  {clr(model, 'bold')}" + (f"  ·  {provider}" if provider else ""))
+    if ctx_limit:
+        print(f"  {_fmt_tokens(used)}/{_fmt_tokens(ctx_limit)} tokens ({pct:.1f}%)")
+    else:
+        print(f"  {_fmt_tokens(used)} tokens (context limit unknown)")
+
+    print()
+    print(clr("  Estimated usage by category", "dim"))
+    for name, tok, color in cats:
+        p = (tok / ctx_limit * 100) if ctx_limit else 0
+        print(f"  {clr(FULL, color)} {name + ':':<15} {_fmt_tokens(tok):>7} tokens ({p:.1f}%)"
+              + (f"  [{msg_count} msgs]" if name == "Messages" else ""))
+    fp = (free / ctx_limit * 100) if ctx_limit else 0
+    print(f"  {clr(EMPTY, 'dim')} {'Free space:':<15} {_fmt_tokens(free):>7} tokens ({fp:.1f}%)")
     return True
 
 

@@ -54,6 +54,7 @@ Type `/` and press **Tab** to see all commands with descriptions. Continue typin
 | `/config` | Show all current config values |
 | `/config key=value` | Set a config value (persisted to disk). v3.05.78+ parses JSON values: `["a","b"]`, `{"k":"v"}`, signed numbers, quoted strings — list/dict configs no longer get silently saved as literal strings. |
 | `/config context_window=<N>` | Override the context window (tokens) for the session. `0` = use the model's default. Drives the prompt `%` indicator, `/context`, the compaction trigger, **and** the per-call output-token cap — all consistently. Distinct from `max_tokens` (which is the **output** cap, not the window). Bidirectional: a smaller value forces earlier compaction; a larger value corrects a stale default. Read live, so it takes effect on the next prompt (no restart). Warns if set above the model's real window (that would disable compaction and the API may reject oversized prompts). |
+| `/config stream_mode=<mode>` | Force the Markdown streaming tier: `live` (full in-place Rich redraw), `commit` (append-only progressive Markdown — safe over SSH / Apple Terminal / pipes), or `plain` (raw tokens). Unset = auto-detected per device (`ui.render.auto_stream_mode`). Legacy `/config rich_live=true\|false` still works (`true`→`live`, `false`→`commit`). |
 | `/save` | Save session (auto-named by timestamp) |
 | `/save <filename>` | Save session to named file |
 | `/load` | Interactive list grouped by date; enter number, `1,2,3` to merge, or `H` for full history |
@@ -61,7 +62,7 @@ Type `/` and press **Tab** to see all commands with descriptions. Continue typin
 | `/resume` | Restore the last auto-saved session (`mr_sessions/session_latest.json`) |
 | `/resume <filename>` | Load a specific file from `mr_sessions/` (or absolute path) |
 | `/history` | Print full conversation history |
-| `/context` | Show message count, token estimate, and context-window usage (honors a `context_window` override) |
+| `/context` | Visualize context-window usage as a Claude-Code-style cell grid, broken down by category (system prompt, system tools, memory files, skills, messages, free space) with per-category token counts and percentages. Honors a `context_window` override; falls back to `#`/`.` when the terminal isn't UTF-8. |
 | `/cost` | Show token usage and estimated USD cost |
 | `/verbose` | Toggle verbose mode (tokens + thinking) |
 | `/quiet` | Toggle compact tool display — hide per-tool execution lines and show one summary line per turn (on by default; `/verbose` overrides it) |
@@ -328,6 +329,7 @@ Keys are saved to `~/.cheetahclaws/config.json` and loaded automatically on next
   "verbose": false,
   "quiet": true,
   "thinking": false,
+  "stream_mode": null,
   "qwen_api_key": "sk-...",
   "kimi_api_key": "sk-...",
   "deepseek_api_key": "sk-...",

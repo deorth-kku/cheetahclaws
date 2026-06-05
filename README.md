@@ -39,9 +39,10 @@ Other install methods: [pip install](#alternative-install-with-pip) | [uv instal
 
 ## 🔥🔥🔥 News (Pacific Time)
 
-- June 4, 2026 (latest, **v3.05.81**): **Claude-Code-style quiet output — hide tool execution, show one summary line per turn.** Quiet mode (on by default) suppresses the per-tool `⚙ Tool(...)` / `✓ → N lines` clutter; the spinner shows live activity and a single line (`Read 2 files, ran 3 shell commands`) is emitted just above the reply. The permission prompt also collapses multi-line commands to one line. Errors still surface. The spinner shows a live timer + running token estimate (`Thinking… (7s · ↓ 435 tokens)`) and each turn closes with a real-usage footer (`✻ Worked for 7.2s · ↑ 1.2k · ↓ 435`). `/verbose` overrides it; toggle with `/quiet` or `--show-tools`; the banner shows `Output: quiet/full`. Details: [docs/guides/features.md](docs/guides/features.md) · [docs/news.md](docs/news.md).
-- June 4, 2026: **Context-window override — the prompt % and compaction follow a settable context length.** New `/config context_window=<N>` overrides the model's context window (`0` = default), distinct from `max_tokens` (the output cap). One value drives the prompt `%`, `/context`, the compaction trigger, and the per-call output cap consistently — read live, so switching model or window updates the `%` with no restart. Details: [docs/guides/reference.md](docs/guides/reference.md) · [docs/news.md](docs/news.md).
-- June 4, 2026: **Rich Live streaming — long responses stay live via a bounded tail window.** Long responses that would overflow the terminal keep rendering live but show only the most recent screenful (a bounded tail window), committing the full output when done — fixing the duplicate/stale frames some terminals left behind. Builds on PR #133. Details: [docs/guides/features.md](docs/guides/features.md) · [docs/news.md](docs/news.md).
+- June 5, 2026 (latest, **v3.05.82**): **Adaptive Markdown streaming — live output stays correct on every device** by auto-selecting a per-device tier (`live` in-place redraw on capable terminals incl. modern SSH emulators, append-only `commit` for SSH/Apple Terminal/pipes/CJK text so frames never duplicate, `plain` fallback); also ships a visual `/context` usage grid and a 1M context window for `deepseek-v4-flash`. Details: [docs/guides/features.md](docs/guides/features.md) · [docs/news.md](docs/news.md).
+- June 4, 2026 (**v3.05.81**): **Claude-Code-style quiet output** hides per-tool execution and shows one summary line per turn (on by default), with a live spinner timer + token estimate and a `✻ Worked for…` footer; `/verbose` overrides, toggle with `/quiet`. Details: [docs/guides/features.md](docs/guides/features.md) · [docs/news.md](docs/news.md).
+- June 4, 2026: **Context-window override** — `/config context_window=<N>` sets the context length that drives the prompt `%`, `/context`, the compaction trigger, and the output cap consistently (distinct from `max_tokens`; read live, no restart). Details: [docs/guides/reference.md](docs/guides/reference.md) · [docs/news.md](docs/news.md).
+- June 4, 2026: **Rich Live streaming** keeps long responses live via a bounded tail window — redrawing only the most recent screenful and committing the full output when done, fixing duplicate/stale frames (builds on PR #133). Details: [docs/guides/features.md](docs/guides/features.md) · [docs/news.md](docs/news.md).
 - May 31, 2026: **QQ bot bridge — `/qq` connects cheetahclaws to QQ groups + C2C private chats via the official `qq-botpy` SDK (PR #121).** Details: [docs/guides/bridges.md](docs/guides/bridges.md#qq-bridge) · [docs/news.md](docs/news.md).
 - May 12, 2026: **Security hardening sweep — env-var bot tokens, web CSRF cookie, terminal session owner-binding, and plugin/MCP/filesystem sandboxing (two CRITICAL + HIGH rounds, 2347 tests green).** Details: [docs/guides/security.md](docs/guides/security.md) · [docs/news.md](docs/news.md).
 - May 12, 2026: **Daemon foundation roadmap — all nine F-1…F-9 items landed: subprocess agent runners, on-crash restart policy, daemonized Telegram/Slack/WeChat bridges, and budget guardrails.** Details: [docs/news.md](docs/news.md).
@@ -52,7 +53,7 @@ For more news, see [here](docs/news.md).
 
 # CheetahClaws
 
-CheetahClaws: **A Lightweight** and **Easy-to-Use** Python native Agent Harness Infrastructure, **Supporting Any Model**, such as Claude, GPT, Gemini, Kimi, Qwen, Zhipu, DeepSeek, MiniMax, and local open-source models via Ollama or any OpenAI-compatible endpoint.
+CheetahClaws: **A Fast** and **Easy-to-Use** Python native Agent Harness Infrastructure, **Supporting Any Model**, such as Claude, GPT, Gemini, Kimi, Qwen, Zhipu, DeepSeek, MiniMax, and local open-source models via Ollama or any OpenAI-compatible endpoint.
 
 ---
 
@@ -537,6 +538,7 @@ If you find the repository useful, please cite the study
 <a href="https://github.com/tsint"><img src="https://avatars.githubusercontent.com/u/63944253?v=4&s=48" width="48" height="48" alt="tsint"/></a>
 <a href="https://github.com/albertcheng"><img src="https://avatars.githubusercontent.com/u/2686135?v=4&s=48" width="48" height="48" alt="albertcheng"/></a>
 <a href="https://github.com/LostAion"><img src="https://avatars.githubusercontent.com/u/84846068?v=4&s=48" width="48" height="48" alt="LostAion"/></a>
+<a href="https://github.com/lucaszhu-hue"><img src="https://avatars.githubusercontent.com/u/278269343?v=4&s=48" width="48" height="48" alt="lucaszhu-hue"/></a>
 <a href="https://github.com/skint007"><img src="https://avatars.githubusercontent.com/u/37035851?v=4&s=48" width="48" height="48" alt="skint007"/></a>
 <a href="https://github.com/thekbbohara"><img src="https://avatars.githubusercontent.com/u/133592644?v=4&s=48" width="48" height="48" alt="thekbbohara"/></a>
 

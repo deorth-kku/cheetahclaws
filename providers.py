@@ -369,6 +369,10 @@ _MODEL_CONTEXT_LIMITS: dict[str, int] = {
     "gemma-2-27b-it":              8192,
     "gemma3":                      8192,
     "gemma4":                      8192,
+    # deepseek-v4-flash ships a 1M context window. Per-model entry overrides
+    # the deepseek provider default (128k), which still applies to v4-pro and
+    # the older deepseek-chat / deepseek-reasoner API models.
+    "deepseek-v4-flash":           1000000,
     # DeepSeek local variants
     "deepseek-r1":                 65536,
     "deepseek-coder-v2":           128000,

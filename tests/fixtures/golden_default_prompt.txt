@@ -115,7 +115,7 @@ These commands the **user** can invoke at the REPL prompt — they are NOT tools
 - `/cloudsave` `[setup | auto | list | load | push]` — Cloud-sync sessions to GitHub Gist
 - `/compact` — Compact conversation history
 - `/config` — Show / set config key=value
-- `/context` — Show token-context usage
+- `/context` — Visualize context-window usage by category
 - `/copy` — Copy last response to clipboard
 - `/cost` — Show cost estimate
 - `/cwd` — Show / change working directory
@@ -138,6 +138,7 @@ These commands the **user** can invoke at the REPL prompt — they are NOT tools
 - `/plugin` `[install | uninstall | enable | disable | disable-all | update | recommend | info]` — Manage plugins
 - `/proactive` `[off]` — Manage proactive background watcher
 - `/qq` `[<appid> <secret> | stop | status]` — QQ bot bridge (botpy SDK)
+- `/quiet` — Toggle compact tool display
 - `/quit` — Exit (alias for /exit)
 - `/resume` — Resume last session
 - `/rewind` `[clear]` — Rewind to checkpoint (alias)
