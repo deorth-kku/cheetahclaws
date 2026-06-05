@@ -399,7 +399,7 @@ def _maybe_redirect_to_summarize(text: str, file_path: str,
     # protect the smallest commonly-used model. For 200K-context models
     # this is very conservative but harmless: SummarizeLargeFile is
     # always cheap on small files (single-shot path).
-    safe_ctx = min(declared_ctx, 30000)
+    safe_ctx = declared_ctx
 
     # Worst-case: assume CJK content tokenizes 1:1 with chars. For pure
     # English content, this is ~3× too conservative — but that's safe
