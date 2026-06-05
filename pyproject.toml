@@ -9,6 +9,30 @@ description = "CheetahClaws: An Extensible, Python-Native Agent System for Auton
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "Apache-2.0" }
+authors = [{ name = "SAIL Lab (Safe AI and Robot Learning Lab)", email = "gushangding@gmail.com" }]
+maintainers = [{ name = "SAIL Lab (Safe AI and Robot Learning Lab)", email = "gushangding@gmail.com" }]
+keywords = [
+    "ai", "agent", "llm", "claude", "openai", "gemini", "deepseek",
+    "coding-assistant", "cli", "terminal", "autonomous-agents",
+    "multi-model", "mcp", "tool-use", "ollama",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Code Generators",
+    "Topic :: Utilities",
+]
 dependencies = [
     "anthropic>=0.40.0",
     "openai>=1.30.0",
@@ -29,6 +53,12 @@ web         = ["sqlalchemy>=2.0", "bcrypt>=4.0", "PyJWT>=2.8.0"]
 litellm     = ["litellm>=1.60.0,<2.0.0"]
 qq          = ["qq-botpy>=1.2.1"]
 all         = ["sounddevice", "Pillow", "prompt_toolkit>=3.0.43", "playwright", "pymupdf", "openpyxl", "pytesseract", "yfinance>=0.2.30", "rank-bm25>=0.2.2", "sqlalchemy>=2.0", "bcrypt>=4.0", "PyJWT>=2.8.0", "litellm>=1.60.0,<2.0.0", "qq-botpy>=1.2.1"]
+
+[project.urls]
+Homepage = "https://cheetahclaws.github.io/"
+Repository = "https://github.com/SafeRL-Lab/cheetahclaws"
+Issues = "https://github.com/SafeRL-Lab/cheetahclaws/issues"
+Documentation = "https://github.com/SafeRL-Lab/cheetahclaws/tree/main/docs"
 
 [project.scripts]
 cheetahclaws = "cheetahclaws:main"
