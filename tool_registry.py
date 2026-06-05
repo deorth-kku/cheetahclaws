@@ -128,6 +128,9 @@ def execute_tool(
             old = _cache_order.pop(0)
             _cache.pop(old, None)
 
+    conf_max_output=config.get("max_tool_output")
+    if conf_max_output:
+        max_output=conf_max_output
     # Model-aware truncation: the static 32K-char cap is fine for English
     # but blows up CJK content (1 token per char). Cap effective max by the
     # model's actual context window so a Bash / Read / WebFetch result
@@ -140,7 +143,7 @@ def execute_tool(
         declared_ctx = get_context_limit(model) or 32768
         # Reserve 16K for system prompt + tool schemas + framing + headroom.
         # 0.5× for CJK-safety (1 char ≈ 1 token worst case).
-        safe_ctx = min(declared_ctx, 30000)
+        safe_ctx = declared_ctx
         effective_max = max(2000, int((safe_ctx - 16000) * 0.5))
         if effective_max < max_output:
             max_output = effective_max
