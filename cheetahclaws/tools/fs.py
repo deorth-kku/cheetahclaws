@@ -18,7 +18,12 @@ def _detect_encoding(data: bytes) -> str:
     if result['confidence'] < 0.1:
         raise OSError(f"File does not appear to be text (chatdet result {result})")
     
-    return result.get('encoding') or 'utf-8'
+    encoding=result.get('encoding')
+    if not encoding:
+        return 'utf-8'
+    elif encoding=="ascii":
+        return 'utf-8'
+    return encoding
 
 
 def _read_preserving_newlines(path:  Path) -> str:
