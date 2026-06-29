@@ -34,6 +34,24 @@ def cmd_model(args: str, _state, config) -> bool:
                 else:
                     info(f"  {'ollama':12s}  " + clr("(not running or no models pulled)", "dim"))
                 continue
+            if pn == "custom":
+                from cheetahclaws.providers import list_custom_models
+                base_url = (
+                    os.environ.get("CUSTOM_BASE_URL")
+                    or config.get("custom_base_url")
+                    or ""
+                )
+                api_key = config.get("custom_api_key") or os.environ.get("CUSTOM_API_KEY", "")
+                if base_url:
+                    local = list_custom_models(base_url, api_key)
+                    if local:
+                        info(f"  {'custom':12s}  " + ", ".join(local[:6]) + ("..." if len(local) > 6 else ""))
+                        info(f"  {'':12s}  " + clr(f"({len(local)} models — /model custom to pick)", "dim"))
+                    else:
+                        info(f"  {'custom':12s}  " + clr("(no models found or endpoint not reachable)", "dim"))
+                else:
+                    info(f"  {'custom':12s}  " + clr("(no custom_base_url configured)", "dim"))
+                continue
             ms = pdata.get("models", [])
             if ms:
                 info(f"  {pn:12s}  " + ", ".join(ms[:4]) + ("..." if len(ms) > 4 else ""))
@@ -46,6 +64,11 @@ def cmd_model(args: str, _state, config) -> bool:
         # "/model ollama" with no model name → interactive picker
         if m == "ollama":
             if _interactive_ollama_picker(config):
+                return True
+            return True
+        # "/model custom" with no model name → interactive picker
+        if m == "custom":
+            if _interactive_custom_picker(config):
                 return True
             return True
         if "/" not in m and ":" in m:
@@ -88,6 +111,51 @@ def _interactive_ollama_picker(config: dict) -> bool:
         idx = int(ans) - 1
         if 0 <= idx < len(models):
             new_model = f"ollama/{models[idx]}"
+            config["model"] = new_model
+            from cheetahclaws.config import save_config
+            save_config(config)
+            ok(f"Model updated to {new_model}")
+            return True
+        else:
+            err("Invalid selection.")
+    except (ValueError, KeyboardInterrupt, EOFError):
+        pass
+    return False
+
+
+def _interactive_custom_picker(config: dict) -> bool:
+    """Prompt the user to select from models available at the custom endpoint."""
+    from cheetahclaws.providers import list_custom_models
+    from cheetahclaws.tools import ask_input_interactive
+
+    base_url = (
+        os.environ.get("CUSTOM_BASE_URL")
+        or config.get("custom_base_url")
+        or ""
+    )
+    api_key = config.get("custom_api_key") or os.environ.get("CUSTOM_API_KEY", "")
+
+    if not base_url:
+        err("No custom_base_url configured. Set it with: /config custom_base_url=http://...")
+        return False
+
+    models = list_custom_models(base_url, api_key)
+    if not models:
+        err(f"No models found at {base_url}.")
+        return False
+
+    menu_buf = clr("\n  ── Custom Models ──", "dim")
+    for i, m in enumerate(models):
+        menu_buf += "\n" + clr(f"  [{i+1:2d}] ", "yellow") + m
+    print(menu_buf)
+    print()
+
+    try:
+        ans = ask_input_interactive(clr("  Select a model number or Enter to cancel > ", "cyan"), config, menu_buf).strip()
+        if not ans: return False
+        idx = int(ans) - 1
+        if 0 <= idx < len(models):
+            new_model = f"custom/{models[idx]}"
             config["model"] = new_model
             from cheetahclaws.config import save_config
             save_config(config)
