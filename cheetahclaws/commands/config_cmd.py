@@ -80,13 +80,6 @@ def cmd_model(args: str, _state, config) -> bool:
         ok(f"Model set to {m}  (provider: {pname})")
         from cheetahclaws.config import save_config
         save_config(config)
-        # llama.cpp model auto-loading hook (model switch)
-        try:
-            from cheetahclaws.llama_model_mgr import check_model_on_switch
-            check_model_on_switch(config)
-        except Exception as _e:
-            from cheetahclaws.ui.render import warn
-            warn(f"llama.cpp model hook failed: {_e}")
     return True
 
 
