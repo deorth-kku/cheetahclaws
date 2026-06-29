@@ -1696,3 +1696,30 @@ def list_ollama_models(base_url: str) -> list[str]:
             return [m["name"] for m in data.get("models", [])]
     except (OSError, urllib.error.URLError, json.JSONDecodeError):
         return []
+
+
+def list_custom_models(base_url: str, api_key: str = "") -> list[str]:
+    """Fetch available models from an OpenAI-compatible endpoint.
+
+    Queries ``/v1/models`` and returns the list of model IDs.  Used by
+    ``/model custom`` to show live models from vLLM, LM Studio, local
+    OpenAI proxies, etc.
+    """
+    try:
+        # base_url may or may not already include /v1 — normalize.
+        stripped = base_url.rstrip("/")
+        if stripped.endswith("/v1"):
+            path = "/models"
+        else:
+            path = "/v1/models"
+        url = stripped + path
+        req = urllib.request.Request(
+            url,
+            headers={"Authorization": f"Bearer {api_key or 'dummy'}", **USER_AGNET},
+        )
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            # OpenAI-compatible: {"data": [{"id": "model-name", ...}, ...]}
+            return [m["id"] for m in data.get("data", [])]
+    except (OSError, urllib.error.URLError, json.JSONDecodeError):
+        return []
