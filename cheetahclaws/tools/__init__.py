@@ -38,7 +38,7 @@ from cheetahclaws.tools.diagnostics import (  # noqa: F401
     _get_diagnostics, _detect_language, _run_quietly,
 )
 
-from tools.image import _read_image_tool  # noqa: F401
+from cheetahclaws.tools.image import _read_image_tool  # noqa: F401
 
 from cheetahclaws.tools.interaction import (  # noqa: F401
     _tg_thread_local, _wx_thread_local, _slack_thread_local, _qq_thread_local,

@@ -40,7 +40,7 @@ def _read_image_tool(params: dict, config: dict) -> str:
         b64 = base64.b64encode(img_bytes).decode("utf-8")
 
         # Inject into vision model context
-        import runtime
+        from cheetahclaws import runtime
 
         runtime.get_ctx(config).pending_image = b64
 
@@ -56,7 +56,7 @@ def _read_image_tool(params: dict, config: dict) -> str:
 
 # ── Register ─────────────────────────────────────────────────────────────
 
-from tool_registry import ToolDef, register_tool  # noqa: E402
+from cheetahclaws.tool_registry import ToolDef, register_tool
 
 register_tool(
     ToolDef(
