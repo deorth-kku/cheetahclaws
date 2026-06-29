@@ -43,7 +43,7 @@ def _web_browse(params: dict, config: dict) -> str:
                 b64 = base64.b64encode(screenshot).decode()
                 browser.close()
 
-                # Inject into vision model context (same as ViewImage)
+                # Inject into vision model context (same as ReadImage)
                 import runtime
                 runtime.get_ctx(config).pending_image = b64
 

@@ -411,6 +411,7 @@ _MODEL_CONTEXT_LIMITS: dict[str, int] = {
 
 # Cache: base_url → {model_id → max_model_len}
 _custom_ctx_cache: dict[str, dict[str, int]] = {}
+_custom_vision_cache: dict[str, dict[str, bool]] = {}
 
 USER_AGNET={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"}
 
@@ -420,12 +421,16 @@ def _fetch_custom_model_limit(base_url: str, model: str, api_key: str) -> int | 
     window. Supports max_model_len (vLLM), context_window, and n_ctx (llama.cpp)
     fields. Returns None on any failure. Results cached per base_url.
 
+    Also populates `_custom_vision_cache` with vision capability detection from
+    ``architecture.input_modalities`` / ``modalities`` / ``capabilities.vision``.
+
     When model is "default", returns the first model's limit. Also backfills
     PROVIDERS['custom']['context_limit'] in-memory the first time it succeeds,
     so compaction.get_context_limit() — which doesn't have direct access to
     base_url — sees the real limit instead of the stale 128000 default.
     """
     cache = _custom_ctx_cache.setdefault(base_url, {})
+    vision_cache = _custom_vision_cache.setdefault(base_url, {})
     if model in cache:
         return cache[model]
     try:
@@ -446,6 +451,9 @@ def _fetch_custom_model_limit(base_url: str, model: str, api_key: str) -> int | 
                     limit = meta.get("n_ctx")
             if limit:
                 cache[mid] = int(limit)
+            # ── Vision detection ──────────────────────────────────────
+            if mid not in vision_cache:
+                vision_cache[mid] = _entry_supports_vision(entry)
         # "default" → use first model's limit
         if model == "default" and cache:
             result = next(iter(cache.values()))
@@ -461,6 +469,61 @@ def _fetch_custom_model_limit(base_url: str, model: str, api_key: str) -> int | 
         return result
     except Exception:
         return None
+
+
+def _entry_supports_vision(entry: dict) -> bool:
+    """Check if a /v1/models entry has vision capability."""
+    # Check architecture.input_modalities
+    arch = entry.get("architecture",{})
+    if isinstance(arch, dict):
+        mods = arch.get("input_modalities",{})
+        if isinstance(mods, list) and any("image" in str(m).lower() for m in mods):
+            return True
+    if isinstance(entry.get("modalities"), list) and any("image" in str(m).lower() for m in entry["modalities"]):
+        return True
+    caps = entry.get("capabilities")
+    if isinstance(caps, dict) and caps.get("vision"):
+        return True
+    return False
+
+
+def model_supports_vision(
+    provider: str,
+    model: str,
+    base_url: str = "",
+    api_key: str = "",
+) -> bool:
+    """Return True if the given model supports vision.
+
+    Priority:
+      1. For custom provider: check cached result from `_fetch_custom_model_limit`
+         (populated at startup, no network call here).
+      2. Heuristic from model name (claude-3, gemini, gpt-4o, llava, …)
+      3. Default: False
+    """
+    bare = bare_model(model)
+
+    # 1. Custom provider: check cached result (no network call)
+    if provider == "custom" and base_url:
+        vision_cache = _custom_vision_cache.get(base_url, {})
+        if bare in vision_cache:
+            return vision_cache[bare]
+        # Cache miss — model not yet queried; fall through to heuristic
+
+    # 2. Heuristic from model name
+    _vision_keywords = (
+        "llava", "moondream", "vision",
+        "claude-3", "claude-opus", "claude-sonnet", "claude-haiku",
+        "gemini", "gpt-4o", "gpt-4.5", "gpt-4-turbo",
+    )
+    if any(kw in bare for kw in _vision_keywords):
+        return True
+    # Qwen-VL family: qwen-vl, qwen2-vl, qwen2.5-vl, qwen-vl-plus, etc.
+    if "-vl" in bare or bare.startswith("qwen-vl"):
+        return True
+
+    # 3. Default
+    return False
 
 
 def get_model_context_window(provider: str, model: str,

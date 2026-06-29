@@ -38,8 +38,6 @@ from cheetahclaws.tools.diagnostics import (  # noqa: F401
     _get_diagnostics, _detect_language, _run_quietly,
 )
 
-from cheetahclaws.tools.image import _read_image_tool  # noqa: F401
-
 from cheetahclaws.tools.interaction import (  # noqa: F401
     _tg_thread_local, _wx_thread_local, _slack_thread_local, _qq_thread_local,
     _is_in_tg_turn, _is_in_wx_turn, _is_in_slack_turn, _is_in_qq_turn, _is_in_web_turn,
@@ -387,32 +385,6 @@ TOOL_SCHEMAS = [
         },
     },
     {
-        "name": "ViewImage",
-        "description": (
-            "Read an image file from disk and inject it into the vision model's context. "
-            "Use this when the model needs to see an image (e.g., screenshots, diagrams, photos). "
-            "The image is sent as base64 to the vision model for analysis."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "file_path": {
-                    "type": "string",
-                    "description": "Absolute path to the image file",
-                },
-                "prompt": {
-                    "type": "string",
-                    "description": "Optional instruction for the vision model (default: 'What do you see in this image?')",
-                },
-                "max_size": {
-                    "type": "integer",
-                    "description": "Maximum file size in bytes (default: 20MB)",
-                },
-            },
-            "required": ["file_path"],
-        },
-    },
-    {
         "name": "AskUserQuestion",
         "description": (
             "Pause execution and ask the user a clarifying question. "
@@ -662,12 +634,6 @@ def _register_builtins() -> None:
             schema=_schemas["GetDiagnostics"],
             func=lambda p, c: _get_diagnostics(p["file_path"], p.get("language")),
             read_only=True, concurrent_safe=True,
-        ),
-        ToolDef(
-            name="ViewImage",
-            schema=_schemas["ViewImage"],
-            func=lambda p, c: _read_image_tool(p, c),
-            read_only=False, concurrent_safe=False,
         ),
         ToolDef(
             name="AskUserQuestion",

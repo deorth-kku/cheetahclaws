@@ -81,7 +81,36 @@ def _read_pdf(params: dict, config: dict) -> str:
 
 
 def _read_image(params: dict, config: dict) -> str:
-    """Extract text from an image using OCR."""
+    """Extract text from an image using OCR, or inject into vision model context.
+
+    If the current model supports vision natively (gpt-4o, claude-3, gemini, …),
+    the image is sent as base64 into the model's context and the model analyzes
+    it directly.  Otherwise falls back to OCR (Tesseract).
+    """
+    # ── Vision path: inject base64 if model supports it ──────────────
+    try:
+        from cheetahclaws import providers
+        model = config.get("model", "")
+        provider = providers.detect_provider(model)
+        base_url = config.get("custom_base_url", "") or ""
+        api_key = config.get("custom_api_key", "") or ""
+        if providers.model_supports_vision(provider, model, base_url, api_key):
+            import base64
+            file_path = params["file_path"]
+            p = Path(file_path)
+            if not p.exists():
+                return f"Error: file not found: {file_path}"
+            with open(p, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode("utf-8")
+            from cheetahclaws import runtime
+            runtime.get_ctx(config).pending_image = b64
+            size_kb = p.stat().st_size / 1024
+            return f"Image loaded: {p.name} ({size_kb:.0f} KB, format: {p.suffix[1:]})\n"
+    except Exception as _e:
+        from cheetahclaws.ui.render import warn
+        warn(f"detect vision failed: {_e}")
+
+    # ── OCR fallback ────────────────────────────────────────────────
     try:
         import pytesseract
         from PIL import Image
@@ -279,9 +308,10 @@ register_tool(ToolDef(
     schema={
         "name": "ReadImage",
         "description": (
-            "Extract text from an image using OCR (Tesseract). "
-            "Supports PNG, JPG, TIFF, BMP. Useful for scanned documents, screenshots, "
-            "and image-only PDFs (convert to image first)."
+            "Read an image file and analyze it. If the current model supports "
+            "vision natively (e.g. gpt-4o, claude-3, gemini), the image is sent "
+            "as base64 for direct analysis. Otherwise falls back to OCR "
+            "(Tesseract) and returns extracted text. Supports PNG, JPG, TIFF, BMP."
         ),
         "input_schema": {
             "type": "object",

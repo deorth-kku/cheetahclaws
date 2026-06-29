@@ -624,7 +624,7 @@ def run(
             })
             break
 
-        # Check for pending image from tools (e.g., ViewImage)
+        # Check for pending image from tools (e.g., ReadImage)
         sctx = runtime.get_ctx(config)
         pending_img = sctx.pending_image
         sctx.pending_image = None
