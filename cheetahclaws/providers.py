@@ -432,6 +432,33 @@ _custom_vision_cache: dict[str, dict[str, bool]] = {}
 USER_AGNET={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"}
 
 
+def _load_llama_model(base_url: str, model_name: str) -> None:
+    """POST /models/load to load an unloaded llama.cpp model.
+
+    Called from _fetch_custom_model_limit when the requested model is
+    detected as unloaded on a llama.cpp server.
+    """
+    try:
+        url = base_url.rstrip("/").rstrip("/v1") + "/models/load"
+        payload = json.dumps({"model": model_name}).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={"Content-Type": "application/json", **USER_AGNET},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            data = json.loads(resp.read())
+            success = data.get("success", False)
+        if success:
+            info(f"Model '{model_name}' loaded successfully")
+        else:
+            err(f"Failed to load model '{model_name}'")
+    except Exception as _e:
+        warn(f"llama.cpp auto-load failed for '{model_name}': {_e}")
+
+from cheetahclaws.ui.render import warn,info,err
+
 def _fetch_custom_model_limit(base_url: str, model: str, api_key: str) -> int | None:
     """Query /v1/models on a custom (vLLM/etc.) endpoint for the TOTAL context
     window. Supports max_model_len (vLLM), context_window, and n_ctx (llama.cpp)
@@ -456,6 +483,8 @@ def _fetch_custom_model_limit(base_url: str, model: str, api_key: str) -> int | 
         )
         with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read())
+        model_entry = None
+        bare=bare_model(model)
         for entry in data.get("data", []):
             mid = entry.get("id", "")
             # vLLM: max_model_len or context_window
@@ -470,6 +499,24 @@ def _fetch_custom_model_limit(base_url: str, model: str, api_key: str) -> int | 
             # ── Vision detection ──────────────────────────────────────
             if mid not in vision_cache:
                 vision_cache[mid] = _entry_supports_vision(entry)
+            # Track the requested model for auto-load check
+            if mid == bare:
+                model_entry = entry
+        # ── llama.cpp auto-load for requested model ───────────────
+        if model != "default" and type(model_entry) == dict :
+            if model_entry.get("owned_by", "") == "llamacpp":
+                status_value = model_entry.get("status", {}).get("value", "")
+                match status_value:
+                    case "unloaded":
+                        _load_llama_model(base_url, bare)
+                    case "":
+                        pass
+                    case "loaded":
+                        pass
+                    case _:
+                        info(f"Model '{model}' status: '{status_value}'")
+        elif model != "default" and model_entry is None:
+            warn(f"Model '{model}' not found on custom api server at {base_url}")
         # "default" → use first model's limit
         if model == "default" and cache:
             result = next(iter(cache.values()))
