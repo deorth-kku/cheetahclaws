@@ -2073,6 +2073,15 @@ def main():
                  f"Set {env} or run: /config {pname}_api_key=YOUR_KEY"
                  f"\n  Or run: cheetahclaws --setup")
 
+    # llama.cpp model auto-loading hook (startup)
+    # Runs after CLI overrides and setup wizard so config["model"] is final.
+    try:
+        from cheetahclaws.llama_model_mgr import check_and_load_llama_model
+        check_and_load_llama_model(config)
+    except Exception as _e:
+        from cheetahclaws.ui.render import warn
+        warn(f"llama.cpp model hook failed: {_e}")
+
     initial = " ".join(args.prompt) if args.prompt else None
     if args.print_mode and not initial:
         err("--print requires a prompt argument")
