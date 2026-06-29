@@ -4,7 +4,7 @@
 
 ```
 cheetahclaws [OPTIONS] [PROMPT]
-# or: python cheetahclaws.py [OPTIONS] [PROMPT]
+# or: python -m cheetahclaws [OPTIONS] [PROMPT]
 
 Options:
   -p, --print          Non-interactive: run prompt and exit
@@ -54,7 +54,7 @@ Type `/` and press **Tab** to see all commands with descriptions. Continue typin
 | `/model` | Show current model + list all available models |
 | `/model <name>` | Switch model (takes effect immediately) |
 | `/config` | Show all current config values |
-| `/config key=value` | Set a config value (persisted to disk). v3.05.78+ parses JSON values: `["a","b"]`, `{"k":"v"}`, signed numbers, quoted strings — list/dict configs no longer get silently saved as literal strings. |
+| `/config key=value` | Set a config value (persisted to disk). v3.5.78+ parses JSON values: `["a","b"]`, `{"k":"v"}`, signed numbers, quoted strings — list/dict configs no longer get silently saved as literal strings. |
 | `/config context_window=<N>` | Override the context window (tokens) for the session. `0` = use the model's default. Drives the prompt `%` indicator, `/context`, the compaction trigger, **and** the per-call output-token cap — all consistently. Distinct from `max_tokens` (which is the **output** cap, not the window). Bidirectional: a smaller value forces earlier compaction; a larger value corrects a stale default. Read live, so it takes effect on the next prompt (no restart). Warns if set above the model's real window (that would disable compaction and the API may reject oversized prompts). |
 | `/config stream_mode=<mode>` | Force the Markdown streaming tier: `live` (full in-place Rich redraw), `commit` (append-only progressive Markdown — safe over SSH / Apple Terminal / pipes), or `plain` (raw tokens). Unset = auto-detected per device (`ui.render.auto_stream_mode`). Legacy `/config rich_live=true\|false` still works (`true`→`live`, `false`→`commit`). |
 | `/save` | Save session (auto-named by timestamp) |
@@ -71,11 +71,11 @@ Type `/` and press **Tab** to see all commands with descriptions. Continue typin
 | `/quiet` | Toggle compact tool display — hide per-tool execution lines and show one summary line per turn (on by default; `/verbose` overrides it) |
 | `/thinking` | Toggle Extended Thinking (Claude only) |
 | `/permissions` | Show current permission mode |
-| `/permissions <mode>` | Set permission mode: `auto` / `accept-all` / `manual` |
+| `/permissions <mode>` | Set permission mode: `auto` / `accept-edits` / `accept-all` / `manual` / `plan` |
 | `/cwd` | Show current working directory |
 | `/cwd <path>` | Change working directory |
 | `/memory` | List all persistent memories |
-| `/memory <query>` | Search memories by keyword (ranked by confidence × recency) |
+| `/memory <query>` | Search memories by keyword (ranked by confidence × recency, where recency decays from when the memory was last *verified*, not last read) |
 | `/memory consolidate` | AI-extract up to 3 long-term insights from the current session |
 | `/skills` | List available skills |
 | `/agents` | Show sub-agent task status |
@@ -350,10 +350,13 @@ Keys are saved to `~/.cheetahclaws/config.json` and loaded automatically on next
 
 | Mode | Behavior |
 |---|---|
-| `auto` (default) | Read-only operations always allowed. Prompts before Bash commands and file writes. |
-| `accept-all` | Never prompts. All operations proceed automatically. |
+| `auto` (default) | Reads + allow-listed Bash run automatically; prompts before file writes (`Write`/`Edit`) and any other Bash command. |
+| `accept-edits` | Like `auto`, but also auto-runs file edits (`Write`/`Edit`/`NotebookEdit`); other (non-allow-listed) Bash still prompts. The middle ground between `auto` and `accept-all`. |
+| `accept-all` | Never prompts; all operations proceed automatically. |
 | `manual` | Prompts before every single operation, including reads. |
-| `plan` | Read-only analysis mode. Only the plan file (`.nano_claude/plans/`) is writable. Entered via `/plan <desc>` or the `EnterPlanMode` tool. |
+| `plan` | Read-only analysis mode: reads + safe Bash run, all writes are refused except the plan file. Entered via `/plan <desc>` or the `EnterPlanMode` tool. |
+
+A **hard denylist** (`rm -rf /`, `mkfs`, `dd` to a raw disk device, `chmod -R 777 /`, fork bombs) is refused at execution time in **every** mode — including `accept-all`, and even if you approve it under `manual`.
 
 **When prompted:**
 
@@ -400,6 +403,7 @@ Keys are saved to `~/.cheetahclaws/config.json` and loaded automatically on next
 | `MemoryDelete` | Delete a memory by name | `name`, `scope` |
 | `MemorySearch` | Search memories by keyword (or AI ranking) | `query`, `scope`, `use_ai`, `max_results` |
 | `MemoryList` | List all memories with age and metadata | `scope` |
+| `MemoryVerify` | Mark a memory as re-checked against the live environment, resetting its staleness clock. The **only** thing that clears the stale flag / restores ranking — a plain `MemorySearch` never does. Call after confirming the memory's claim still holds. | `name`, `scope` |
 
 ### Sub-Agent Tools
 

@@ -12,7 +12,7 @@ These tests pin two related invariants:
    without prompting for an API key.
 
 The wizard is interactive, so we mock ``input``, ``urllib.request.urlopen``,
-``providers.list_ollama_models``, and ``cc_config.save_config`` to keep
+``providers.list_ollama_models``, and ``config.save_config`` to keep
 the test fully offline.
 """
 from __future__ import annotations
@@ -25,29 +25,29 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
 
-import commands.core as _core
+import cheetahclaws.commands.core as _core
 
 
 @pytest.fixture(autouse=True)
 def _ensure_real_providers_module():
     """Defend against test pollution.
 
-    ``tests/test_research.py`` historically replaced ``sys.modules["providers"]``
+    ``tests/test_research.py`` historically replaced ``sys.modules["cheetahclaws.providers"]``
     with a stub and didn't restore it.  Even after that's been fixed,
     keep this fixture as a safety net so future stubbing accidents in
     other suites don't silently break the wizard tests.
     """
     import importlib
-    saved = sys.modules.pop("providers", None)
+    saved = sys.modules.pop("cheetahclaws.providers", None)
     try:
         importlib.invalidate_caches()
         # Re-import from disk; raises a clear error if the import is broken.
-        importlib.import_module("providers")
+        importlib.import_module("cheetahclaws.providers")
         yield
     finally:
         if saved is not None and getattr(saved, "PROVIDERS", None) is None:
             # The pre-existing entry was a stub — drop it.
-            sys.modules.pop("providers", None)
+            sys.modules.pop("cheetahclaws.providers", None)
 
 
 def _run_wizard(monkeypatch, inputs: list[str], config: dict,
@@ -83,15 +83,16 @@ def _run_wizard(monkeypatch, inputs: list[str], config: dict,
 
     # Stub list_ollama_models — providers.py imports it from itself
     # inside the wizard via `from providers import list_ollama_models`.
-    import providers
+    from cheetahclaws import providers
     if ollama_models is not None:
         monkeypatch.setattr(providers, "list_ollama_models",
                              lambda *_a, **_kw: list(ollama_models),
                              raising=False)
 
     # Don't write to ~/.cheetahclaws/config.json from a test.
-    import cc_config
-    monkeypatch.setattr(cc_config, "save_config", lambda *_a, **_kw: None)
+    # NB: alias the module so it doesn't shadow the `config` dict param.
+    from cheetahclaws import config as _config_mod
+    monkeypatch.setattr(_config_mod, "save_config", lambda *_a, **_kw: None)
 
     _core.run_setup_wizard(config)
     return config
@@ -124,7 +125,7 @@ def test_lmstudio_provider_does_not_crash_on_none_api_key_env(monkeypatch):
     (the wizard's provider menu doesn't list LMStudio, but other code
     paths in the same module read the same field).
     """
-    from providers import PROVIDERS
+    from cheetahclaws.providers import PROVIDERS
     prov = PROVIDERS["lmstudio"]
     # The fixed predicate: `or ""` tolerates a None value.
     env_var = prov.get("api_key_env") or ""
