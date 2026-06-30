@@ -413,7 +413,7 @@ _MODEL_CONTEXT_LIMITS: dict[str, int] = {
 _custom_ctx_cache: dict[str, dict[str, int]] = {}
 _custom_vision_cache: dict[str, dict[str, bool]] = {}
 
-USER_AGNET={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"}
+USER_AGENT={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"}
 
 
 def _load_llama_model(base_url: str, model_name: str) -> None:
@@ -428,7 +428,7 @@ def _load_llama_model(base_url: str, model_name: str) -> None:
         req = urllib.request.Request(
             url,
             data=payload,
-            headers={"Content-Type": "application/json", **USER_AGNET},
+            headers={"Content-Type": "application/json", **USER_AGENT},
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=30) as resp:
@@ -463,7 +463,7 @@ def _fetch_custom_model_limit(base_url: str, model: str, api_key: str) -> int | 
     try:
         url = base_url.rstrip("/") + "/models"
         req = urllib.request.Request(
-            url, headers={"Authorization": f"Bearer {api_key or 'dummy'}",**USER_AGNET}
+            url, headers={"Authorization": f"Bearer {api_key or 'dummy'}",**USER_AGENT}
         )
         with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read())
@@ -1219,7 +1219,7 @@ def stream_openai_compat(
 ) -> Generator:
     """Stream from any OpenAI-compatible API. Yields TextChunk, then AssistantTurn."""
     from openai import OpenAI
-    client = OpenAI(api_key=api_key or "dummy", base_url=base_url, default_headers=USER_AGNET)
+    client = OpenAI(api_key=api_key or "dummy", base_url=base_url, default_headers=USER_AGENT)
 
     oai_messages = [{"role": "system", "content": system}] + messages_to_openai(messages)
 
@@ -1825,7 +1825,7 @@ def list_custom_models(base_url: str, api_key: str = "") -> list[str]:
         url = stripped + path
         req = urllib.request.Request(
             url,
-            headers={"Authorization": f"Bearer {api_key or 'dummy'}", **USER_AGNET},
+            headers={"Authorization": f"Bearer {api_key or 'dummy'}", **USER_AGENT},
         )
         with urllib.request.urlopen(req, timeout=3) as resp:
             data = json.loads(resp.read().decode("utf-8"))
