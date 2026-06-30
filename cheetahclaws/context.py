@@ -78,19 +78,15 @@ def get_git_info() -> str:
         if _git_cache is not None and _git_cache[1] == cwd and _git_cache[0] > now:
             return _git_cache[2]
     try:
+        is_clean = subprocess.call(["git", "diff", "--quiet"]) == 0
         branch = subprocess.check_output(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-            stderr=subprocess.DEVNULL, text=True).strip()
-        status = subprocess.check_output(
-            ["git", "status", "--short"],
             stderr=subprocess.DEVNULL, text=True).strip()
         log = subprocess.check_output(
             ["git", "log", "--oneline", "-5"],
             stderr=subprocess.DEVNULL, text=True).strip()
         parts = [f"- Git branch: {branch}"]
-        if status:
-            lines = status.split('\n')[:10]
-            parts.append("- Git status:\n" + "\n".join(f"  {l}" for l in lines))
+        parts.append("- Git status: "+ "clean" if is_clean else "dirty")
         if log:
             parts.append("- Recent commits:\n" + "\n".join(f"  {l}" for l in log.split('\n')))
         result = "\n".join(parts) + "\n"
