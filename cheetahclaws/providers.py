@@ -458,8 +458,9 @@ def _fetch_custom_model_limit(base_url: str, model: str, api_key: str) -> int | 
     """
     cache = _custom_ctx_cache.setdefault(base_url, {})
     vision_cache = _custom_vision_cache.setdefault(base_url, {})
-    if model in cache:
-        return cache[model]
+    bare = bare_model(model)
+    if bare in cache:
+        return cache[bare]
     try:
         url = base_url.rstrip("/") + "/models"
         req = urllib.request.Request(
