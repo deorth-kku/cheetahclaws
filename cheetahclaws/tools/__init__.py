@@ -99,7 +99,7 @@ TOOL_SCHEMAS = [
     },
     {
         "name": "Bash",
-        "description": "Execute a shell command. Returns stdout+stderr. Stateless (no cd persistence).",
+        "description": "Execute a shell command. Returns stdout+stderr. Each call runs in the current working directory.",
         "input_schema": {
             "type": "object",
             "properties": {
