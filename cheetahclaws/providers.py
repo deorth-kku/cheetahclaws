@@ -413,6 +413,10 @@ _MODEL_CONTEXT_LIMITS: dict[str, int] = {
 _custom_ctx_cache: dict[str, dict[str, int]] = {}
 _custom_vision_cache: dict[str, dict[str, bool]] = {}
 
+def clear_cache():
+    _custom_ctx_cache.clear()
+    _custom_vision_cache.clear()
+
 USER_AGENT={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0"}
 
 
@@ -462,15 +466,10 @@ def _fetch_custom_model_limit(base_url: str, model: str, api_key: str) -> int | 
     if bare in cache:
         return cache[bare]
     try:
-        url = base_url.rstrip("/") + "/models"
-        req = urllib.request.Request(
-            url, headers={"Authorization": f"Bearer {api_key or 'dummy'}",**USER_AGENT}
-        )
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read())
+        data=_get_models_info(base_url,api_key=api_key)
         model_entry = None
         bare=bare_model(model)
-        for entry in data.get("data", []):
+        for entry in data:
             mid = entry.get("id", "")
             # vLLM: max_model_len or context_window
             limit = entry.get("max_model_len") or entry.get("context_window")
@@ -1808,6 +1807,14 @@ def list_ollama_models(base_url: str) -> list[str]:
     except (OSError, urllib.error.URLError, json.JSONDecodeError):
         return []
 
+def _get_models_info(base_url: str, api_key: str = "") -> list[dict]:
+    url = base_url.rstrip("/") + "/models"
+    req = urllib.request.Request(
+        url, headers={"Authorization": f"Bearer {api_key or 'dummy'}",**USER_AGENT}
+    )
+    with urllib.request.urlopen(req, timeout=3) as resp:
+        data = json.loads(resp.read())
+    return data.get("data",[])
 
 def list_custom_models(base_url: str, api_key: str = "") -> list[str]:
     """Fetch available models from an OpenAI-compatible endpoint.
@@ -1817,20 +1824,6 @@ def list_custom_models(base_url: str, api_key: str = "") -> list[str]:
     OpenAI proxies, etc.
     """
     try:
-        # base_url may or may not already include /v1 — normalize.
-        stripped = base_url.rstrip("/")
-        if stripped.endswith("/v1"):
-            path = "/models"
-        else:
-            path = "/v1/models"
-        url = stripped + path
-        req = urllib.request.Request(
-            url,
-            headers={"Authorization": f"Bearer {api_key or 'dummy'}", **USER_AGENT},
-        )
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            # OpenAI-compatible: {"data": [{"id": "model-name", ...}, ...]}
-            return [m["id"] for m in data.get("data", [])]
+        return [m["id"] for m in _get_models_info(base_url,api_key=api_key)]
     except (OSError, urllib.error.URLError, json.JSONDecodeError):
         return []

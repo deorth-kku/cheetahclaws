@@ -60,6 +60,8 @@ def cmd_model(args: str, _state, config) -> bool:
         info("  e.g. /model ollama/qwen2.5-coder")
         info("  e.g. /model kimi:moonshot-v1-32k")
     else:
+        from cheetahclaws.providers import clear_cache
+        clear_cache()
         m = args.strip()
         # "/model ollama" with no model name → interactive picker
         if m == "ollama":
