@@ -18,19 +18,68 @@ _SAFE_PREFIXES = (
 )
 
 
-_CHAIN_OPERATORS = (";", "&&", "||", "|", "`", "$(", "\n")
+_CHAIN_OPERATORS = (";", "&&", "||", "`", "$(", "\n")
+
+# Commands safe to use as pipe tails — strictly read-only, no side effects.
+# If the pipe tail is anything else (curl, rm, xargs, sh, bash, etc.), the
+# whole command is rejected even if the prefix is safe.
+_SAFE_PIPE_TAIL = (
+    "head", "tail", "wc", "sort", "uniq",
+    "tr", "cut", "sed", "awk", "rev", "split", "paste",
+    "less", "more", "col", "fmt", "fold", "expand", "unexpand",
+    "nl", "number", "pr", "column", "join", "comm", "diff", "cmp",
+    "xxd", "od", "hexdump", "base64", "base32",
+    "grep", "rg", "ag",
+    "true", "false", "test",
+)
 
 
 def _is_safe_bash(cmd: str) -> bool:
     """Return True if cmd is read-only and never needs a permission prompt.
 
-    Rejects commands that contain shell chaining operators (;, &&, ||, |,
-    backticks, $(…)) — these could execute arbitrary code after a safe prefix.
+    Allows:
+      - Simple safe-prefix commands (ls, git status, etc.)
+      - Safe-prefix | safe-tail (grep ... | head, find ... | wc -l, etc.)
+    Rejects:
+      - Commands with dangerous chaining operators (;, &&, ||, `, $())
+      - Pipes to unsafe tails (| rm, | curl, | xargs, | sh, etc.)
     """
     c = cmd.strip()
-    # Reject any command that chains multiple commands
+
+    # Reject truly dangerous chaining operators (no pipe — pipe is handled below)
     if any(op in c for op in _CHAIN_OPERATORS):
         return False
+
+    # Check for pipe: if present, split on " | " and validate both sides
+    if "|" in c:
+        # Split on " | " (with spaces) to avoid matching >> or || etc.
+        # Fallback: split on bare | if no spaced variant found
+        if " | " in c:
+            parts = c.split(" | ")
+        else:
+            # bare | without spaces — still allow if all parts are safe
+            parts = c.split("|")
+
+        # Every part must be a simple command (no further chaining within)
+        for part in parts:
+            part = part.strip()
+            if not part:
+                return False
+            if any(op in part for op in _CHAIN_OPERATORS):
+                return False
+
+        # The first part must match a safe prefix
+        if not any(c.startswith(p) for p in _SAFE_PREFIXES):
+            return False
+
+        # Every pipe tail must be an allowed safe command
+        for part in parts[1:]:
+            tail_cmd = part.strip().split()[0] if part.strip() else ""
+            if tail_cmd not in _SAFE_PIPE_TAIL:
+                return False
+
+        return True
+
     return any(c.startswith(p) for p in _SAFE_PREFIXES)
 
 
