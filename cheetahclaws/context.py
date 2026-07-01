@@ -69,6 +69,29 @@ def _scan_for_threats(content: str, source: str) -> str | None:
     return None
 
 
+def get_simplify_git_info() -> str:
+    """Return git branch + clean/dirty only. Cached for ~30s."""
+    global _git_cache
+    cwd = str(Path.cwd())
+    now = time.monotonic()
+    with _cache_lock:
+        if _git_cache is not None and _git_cache[1] == cwd and _git_cache[0] > now:
+            return _git_cache[2]
+    try:
+        is_clean = subprocess.call(["git", "diff", "--quiet"]) == 0
+        branch = subprocess.check_output(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            stderr=subprocess.DEVNULL, text=True).strip()
+        parts = [f"- Git branch: {branch}"]
+        parts.append("- Git status: " + ("clean" if is_clean else "dirty"))
+        result = "\n".join(parts) + "\n"
+    except Exception:
+        result = ""
+    with _cache_lock:
+        _git_cache = (now + _GIT_CACHE_TTL, cwd, result)
+    return result
+
+
 def get_git_info() -> str:
     """Return git branch/status summary if in a git repo. Cached for ~30s."""
     global _git_cache
@@ -204,7 +227,15 @@ def _render_env_block(config: dict | None = None) -> str:
         f"- Working directory: {Path.cwd()}\n"
         f"- Platform: {_plat.system()}\n"
     )
-    return header + get_platform_hints() + get_git_info() + get_claude_md()
+    git_level = (config or {}).get("git_info_level", "full")
+    match git_level:
+        case "simplify":
+            git_block = get_simplify_git_info()
+        case "none":
+            git_block = ""
+        case _:
+            git_block = get_git_info()
+    return header + get_platform_hints() + git_block + get_claude_md()
 
 
 def _render_plan_fragment(config: dict) -> str:

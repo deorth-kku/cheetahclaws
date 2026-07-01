@@ -148,6 +148,11 @@ DEFAULTS = {
     # contacts whose messages you want the bot to draft replies for).
     # Auto-recorded by the wechat bridge on first inbound (see _wx_poll_loop).
     "wechat_self_uid":                     "",
+    # ── Git info detail level in system prompt ─────────────────────────────
+    #   "full"    — branch + working-tree status + recent commits (default)
+    #   "simplify" — branch + clean/dirty only
+    #   "none"     — omit git info entirely
+    "git_info_level":                      "full",
 }
 
 
