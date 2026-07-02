@@ -78,7 +78,12 @@ def get_simplify_git_info() -> str:
         if _git_cache is not None and _git_cache[1] == cwd and _git_cache[0] > now:
             return _git_cache[2]
     try:
-        is_clean = subprocess.call(["git", "diff", "--quiet"]) == 0
+        proc = subprocess.run(
+            ["git", "diff", "--quiet"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        if "Not a git repository" in proc.stderr:
+            return ""
+        is_clean = proc.returncode == 0
         branch = subprocess.check_output(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
             stderr=subprocess.DEVNULL, text=True).strip()

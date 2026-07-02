@@ -639,9 +639,7 @@ def run(
             })
             break
 
-<<<<<<< HEAD
-=======
-        # Check for pending image from tools (e.g., ReadImage)
+        # Check for pending image from tools (e.g., ViewImage)
         sctx = runtime.get_ctx(config)
         pending_img = sctx.pending_image
         sctx.pending_image = None
@@ -652,7 +650,6 @@ def run(
                 "images": [pending_img],
             })
 
->>>>>>> fe36b22 (ReadImage auto vision)
 
 # ── Helpers ───────────────────────────────────────────────────────────────
 
