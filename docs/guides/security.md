@@ -36,6 +36,7 @@ hardening below kicks in.
 | `CHEETAHCLAWS_PLUGIN_ALLOWLIST` | (unset) | Comma-separated plugin names. When set, only these plugins are loaded — everything else is silently skipped, even if enabled in the registry. |
 | `CHEETAHCLAWS_MCP_TRUST_ENV` | `0` | Set to `1` to allow MCP server configs to inject `LD_PRELOAD`, `LD_LIBRARY_PATH`, `DYLD_*`, `PYTHONPATH`, `PYTHONSTARTUP`, `PYTHONHOME`, `NODE_OPTIONS`, `NODE_PATH`, `BASH_ENV`, or `ENV`. Default is to silently strip these from `mcp.json`-supplied env. |
 | `CHEETAHCLAWS_WEB_SECRET` | (unset) | Per-deployment JWT signing secret for the web UI. Strongly recommended for production — overrides the auto-generated file at `~/.cheetahclaws/web_secret`. |
+| `CHEETAHCLAWS_IMAGE_OCR` | `1` | Set to `0` to disable local-OCR enrichment of `/image`. When on (and `pytesseract`/`tesseract` are installed), `/image` transcribes the clipboard screenshot and appends the text to the prompt so non-vision models can act on it. Disable to avoid the synchronous OCR latency or to keep the raw image the only signal sent to a vision model. |
 
 ## Bot tokens — recommended setup
 

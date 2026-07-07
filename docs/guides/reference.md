@@ -88,7 +88,7 @@ Type `/` and press **Tab** to see all commands with descriptions. Continue typin
 | `/voice status` | Show recording and STT backend availability |
 | `/voice lang <code>` | Set STT language (e.g. `zh`, `en`, `ja`; `auto` to detect) |
 | `/voice device` | List available input microphones and select one interactively |
-| `/image [prompt]` | Capture clipboard image and send to vision model with optional prompt |
+| `/image [prompt]` | Capture clipboard image and send to vision model with optional prompt. If OCR is installed (`cheetahclaws[ocr]`), also appends locally-transcribed text so non-vision models can act on it; disable with `CHEETAHCLAWS_IMAGE_OCR=0` |
 | `/img [prompt]` | Alias for `/image` |
 | `/proactive` | Show current proactive polling status (ON/OFF and interval) |
 | `/proactive <duration>` | Enable background sentinel polling (e.g. `5m`, `30s`, `1h`) |
