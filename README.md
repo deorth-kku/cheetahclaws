@@ -238,7 +238,7 @@ Works on **Linux, macOS, WSL2, and Android (Termux)** (Python 3.10+). First run 
 
 > **Windows:** native Windows is not supported — use [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install). **Android/Termux:** `pkg install python git && pip install cheetahclaws`.
 
-### Alternative: install with `pip` from PyPi
+### Alternative: install with `pip`
 
 ```bash
 pip install cheetahclaws
