@@ -16,7 +16,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: cheetahclaws:latest
+    # Local build tags as cheetahclaws:latest by default. To run a published
+    # image from Docker Hub instead, set CHEETAH_IMAGE and skip --build:
+    #   CHEETAH_IMAGE=chauncygu/cheetahclaws:latest docker compose up -d
+    image: "${CHEETAH_IMAGE:-cheetahclaws:latest}"
     container_name: cheetahclaws
     restart: unless-stopped
 

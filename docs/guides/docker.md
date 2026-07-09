@@ -6,6 +6,81 @@ This guide targets a Linux host (Ubuntu / DGX-Spark) running Docker 20.10+ and a
 
 > CheetahClaws also runs perfectly well as a normal `pip install`. Use Docker when you want a long-running service, network-accessible UI, or process isolation. For local CLI use against your own files, native install is usually smoother.
 
+## Pull from Docker Hub
+
+If you just want to run CheetahClaws without cloning the source, use the pre-built image on Docker Hub under the `chauncygu` namespace.
+
+```bash
+docker pull chauncygu/cheetahclaws:latest        # or pin a version: :3.5.84
+```
+
+Run the Web UI directly:
+
+```bash
+docker run --rm -p 8080:8080 \
+  -v "$PWD/workspace:/workspace" \
+  -v "$PWD/data:/home/cheetah/.cheetahclaws" \
+  chauncygu/cheetahclaws:latest
+```
+
+Then open `http://localhost:8080/chat`. The two volumes persist your workspace files and config/history across container restarts (`mkdir -p ./workspace ./data` first).
+
+**Using the published image with compose** — the bundled `docker-compose.yml` builds locally by default, but you can point it at the Hub image instead and skip the build:
+
+```bash
+CHEETAH_IMAGE=chauncygu/cheetahclaws:latest docker compose up -d
+```
+
+The rest of this guide covers the build-from-source compose workflow (host Ollama, Telegram bridge, SMB share), which applies to the pulled image too.
+
+### Publishing the image (maintainers)
+
+`scripts/docker-publish.sh` reads the version from `pyproject.toml` and pushes both `:latest` and `:<version>` tags (multi-arch by default):
+
+```bash
+docker login
+DOCKERHUB_USERNAME=chauncygu ./scripts/docker-publish.sh
+```
+
+Pass `SINGLE_ARCH=1` for a host-arch-only build, or `DRY_RUN=1` to preview the commands.
+
+## Interactive setup / CLI mode
+
+The image's default command is `--web`, so `docker run` boots straight into the **Web UI** — you configure the provider, API key, and model in its **Settings** panel (there is no terminal wizard in this mode). That's the intended path for a long-running server.
+
+If you'd rather use the same **interactive first-run wizard** you get from a native `pip install` (step-by-step provider + API-key setup), run the container with a TTY (`-it`) and pass `--setup`, which overrides the default web command:
+
+```bash
+mkdir -p ~/cheetahclaws/data
+docker run --rm -it \
+  -v ~/cheetahclaws/data:/home/cheetah/.cheetahclaws \
+  chauncygu/cheetahclaws:latest --setup
+```
+
+To drop straight into the CLI REPL instead (the wizard auto-triggers on first run when stdin is a TTY):
+
+```bash
+docker run --rm -it \
+  -e ANTHROPIC_API_KEY=sk-ant-...  \
+  -v ~/cheetahclaws/workspace:/workspace \
+  -v ~/cheetahclaws/data:/home/cheetah/.cheetahclaws \
+  chauncygu/cheetahclaws:latest --model claude-sonnet-4-6
+```
+
+> **Apple Silicon:** the published image is `linux/amd64` only — add `--platform linux/amd64` to any `docker run` above; it runs under Rosetta emulation.
+
+> **Persist your config.** Always mount `-v <host-dir>:/home/cheetah/.cheetahclaws`. Without it, the API key and provider you enter live only inside the container and are lost on `--rm` exit, so every run looks like a "first run" again. With it, config lands in `<host-dir>/config.json` on the host.
+
+The wizard's trigger (`cli.py`) is: **first run** (`config.json` missing/empty) **and** stdin is a TTY **and** not `--print` mode. Web mode and non-`-it` runs skip it by design.
+
+### Three ways to configure
+
+| Run mode | How you configure | Best for |
+|---|---|---|
+| Default (`--web`) | Web UI → Settings panel | Browser chat, long-running service |
+| `-it … --setup` | Interactive wizard (like `pip` install) | Guided provider + key setup |
+| `-it …` (no `--web`) | Wizard auto-triggers → CLI REPL | Pure terminal use |
+
 ## Prerequisites
 
 - Docker Engine 20.10 or newer (`docker --version`)

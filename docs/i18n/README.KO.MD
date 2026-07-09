@@ -1,2544 +1,542 @@
-English | [中文](README.CN.MD) | [Français](README.FR.MD) | [한국어](README.KO.MD) | [日本語](README.JP.MD) | [Deutsch](README.DE.MD) | [Português](README.ES.MD)
+[English](../../README.md) | [中文](README.CN.MD) | 한국어 | [日本語](README.JP.MD) | [Français](README.FR.MD) | [Deutsch](README.DE.MD) | [Español](README.ES.MD) | [Português](README.PT.MD)
 
-> ⚠️ 이 번역은 오래되었을 수 있습니다. 최신 정보는 영어 [README](../../README.md)를 참고하세요.
-
-<br>
-
-
+<br>  
 
 <div align="center">
   <a href="[https://github.com/SafeRL-Lab/Robust-Gymnasium](https://github.com/SafeRL-Lab/cheetahclaws)">
-    <img src="../media/logos/logo-5.png" alt="Logo" width="280"> 
+    <img src="https://raw.githubusercontent.com/SafeRL-Lab/cheetahclaws/main/docs/media/logos/logo-5.png" alt="Logo" width="280"> 
   </a>
 
   
-<h2 align="center" style="font-size: 30px;"><strong><em>CheetahClaws (Nano Claude Code)</em></strong>: A Fast, Easy-to-Use, Python-Native Personal AI Assistant for Any Model, Inspired by OpenClaw and Claude Code, Built to Work for You Autonomously 24/7</h2>
+<h2 align="center" style="font-size: 30px;"><strong><em>CheetahClaws</em></strong>: 장기 과제, 멀티 모델, 도구 사용 AI 시스템을 위한 빠르고 사용하기 쉬운 에이전트 하네스 인프라</h2>
 <p align="center">
-    <a href="https://github.com/chauncygu/collection-claude-code-source-code">The newest source of Claude Code</a>
+    <a href="https://cheetahclaws.github.io/">웹사이트</a>
     ·
-    <a href="https://github.com/SafeRL-Lab/cheetahclaws/issues">Issue</a>
-  ·
-    <a href="https://deepwiki.com/SafeRL-Lab/cheetahclaws">Brief Intro</a>
-  
+    <a href="https://arxiv.org/pdf/2605.26112">하네스 스케일링</a>
+    ·
+    <a href="https://github.com/SafeRL-Lab/cheetahclaws/issues">이슈</a>
+    ·
+    <a href="https://pypi.org/project/cheetahclaws/">
+      <img src="https://img.shields.io/badge/downloads-9.6K-blue" alt="Downloads 9.6K" align="absmiddle">
+    </a>
   </p>
 </div>
 
- <div align=center>
- <img src="../media/demos/demo.gif" width="850"/> 
- </div>
-<div align=center>
-<center style="color:#000000;text-decoration:underline">작업 실행</center>
- </div>
- 
- 
----
 
-  <div align=center>
- <img src="../media/demos/brainstorm_demo.gif" width="850"/> 
- </div>
-<div align=center>
-<center style="color:#000000;text-decoration:underline">브레인스토밍 모드: 멀티에이전트 브레인스토밍</center>
- </div>
+### 빠른 설치
 
+```bash
+pip install cheetahclaws
+```
 
+그런 다음 그냥 실행하세요:
 
----
+```bash
+cheetahclaws        # start chatting!
+```
 
-  <div align=center>
- <img src="../media/demos/proactive_demo.gif" width="850"/> 
- </div>
-<div align=center>
-<center style="color:#000000;text-decoration:underline">프로액티브 모드: 자율 에이전트</center>
- </div>
+다른 설치 방법: [원라인 설치 스크립트](#대안-원라인-설치-스크립트) | [소스에서 설치](#대안-소스-코드에서-pip으로-설치) | [uv 설치](#대안-uv로-설치) | [소스에서 직접 실행](#대안-소스에서-직접-실행-설치-불필요) | [전체 설치 안내](#설치)
 
----
+> 🖥️ **네이티브 앱을 선호하시나요?** 데스크톱 빌드(Electron)는 전체 채팅 UI를 하나의 창에 담아 제공하며 터미널이 필요 없습니다. [`desktop/`](../../desktop/README.md)를 참고하세요.
 
-  <div align=center>
- <img src="../media/demos/ssj_demo.gif" width="850"/> 
- </div>
-<div align=center>
-<center style="color:#000000;text-decoration:underline">SSJ 개발자 모드: 파워 메뉴 워크플로우</center>
- </div>
-
----
-
-  <div align=center>
- <img src="../media/demos/telegram_demo.gif" width="850"/> 
- </div>
-<div align=center>
-<center style="color:#000000;text-decoration:underline">텔레그램 브리지: 휴대폰에서 CheetahClaws 제어</center>
- </div>
-
----
-
-
- 
 ## 🔥🔥🔥 뉴스 (태평양 시간)
 
+- 2026년 7월 9일: **공식 Docker 이미지 + 원커맨드 배포.** Docker Hub에 사전 빌드된 이미지(`docker pull chauncygu/cheetahclaws`)를 제공하여 클론 없이 웹 UI를 실행할 수 있습니다. 비루트 사용자가 소유하는 `.cheetahclaws`/`workspace` 디렉터리를 사전 생성하여 첫 실행 시 발생하던 `PermissionError`를 수정했고, compose의 `image`를 `CHEETAH_IMAGE`로 재정의할 수 있게 했으며, `scripts/docker-publish.sh`(버전 자동 인식, 멀티/싱글 아키텍처)를 추가했습니다. 새 문서 섹션: **Docker Hub에서 가져오기** 및 **대화형 설정 / CLI 모드**. [자세히](../news.md)
+- 2026년 7월 8일: 새 **`/workspace`** 명령이 `~/.cheetahclaws/workspaces` 아래의 격리된 작업 디렉터리를 관리합니다(`list`/`switch`/`default`/`create`/`delete`) (PR #162). 시작 시 자동 전환은 `workspace_auto`로 **선택적 활성화**되며(기본값 꺼짐, 따라서 프로젝트 디렉터리에서 실행해도 동작이 변하지 않음), `default`는 이제 마지막 사용 값과 분리된 고정 키가 되었습니다. [자세히](../news.md)
+- 2026년 7월 6일 (**v3.5.84**): **`/image`가 이제 로컬 OCR 텍스트로 프롬프트를 보강**하여 비전 모델이 아니어도 클립보드 스크린샷(오류 덤프, 코드, 표)을 처리할 수 있습니다. `pytesseract`/`tesseract`가 설치된 경우에만 실행되며 `CHEETAHCLAWS_IMAGE_OCR=0`으로 완전히 비활성화할 수 있습니다. [자세히](../news.md)
+- 2026년 6월 28일: 새 **`accept-edits`** 권한 모드(파일 편집은 자동 실행하되 허용 목록에 없는 Bash는 여전히 확인) — `auto`와 `accept-all` 사이의 중간 지점입니다. 또한 `/permissions`에 기존 `plan` 모드를 노출하고 프롬프트의 오해를 부르는 `auto` 설명을 수정했습니다. [자세히](../news.md)
+- 2026년 6월 28일: **메모리 노후화**가 이제 파일 mtime 대신 `last_verified` 날짜를 기준으로 하여, 메모리를 읽는 것만으로 노후된 메모리를 거짓으로 갱신할 수 없습니다(PR #150). 새 **`MemoryVerify`** 도구만이 이 시계를 재설정하며, 프롬프트는 재확인 후 이를 호출하도록 에이전트에게 지시하고, 주입되는 메모리 매니페스트는 검증 최신순으로 정렬됩니다. [자세히](../news.md)
+- 2026년 6월 23일 (**v3.5.83**): 문서 간소화(README 뉴스 → 항목당 한 줄, Atlas 59개 모델 목록 → usage.md, FAQ 축소) 및 네이티브 **데스크톱 앱**(웹 UI를 감싸는 Electron 셸)을 `desktop/` 아래에 추가했으며, 버전 문자열 형식을 `v3.5.x`로 통일했습니다. [자세히](../news.md)
+- 2026년 6월 16일: 이제 모든 내부 모듈이 단일 `cheetahclaws` 패키지 아래에 위치하여(`from cheetahclaws import kernel`) 시작 시 발생하던 `sys.path` 이름 충돌 크래시를 제거했습니다 — 내부를 직접 임포트하는 경우에만 호환성이 깨집니다. 전체 테스트 통과(2449개 통과). [자세히](../news.md)
+- 2026년 6월 6일 (**v3.5.82**): macOS 설치 시 이제 `cheetahclaws`가 안정적으로 PATH에 등록되며, 도구 호출을 텍스트로 내보내던 로컬 Ollama 모델이 이제 실제로 이를 실행합니다(#131의 두 가지 수정). [자세히](../news.md)
+- 2026년 6월 5일: 사용자가 제어할 수 있는 토큰/비용 예산 — `/budget $5` / `/budget daily $20`으로 세션 또는 일별 지출 상한을 설정하며, 각 모델 호출 전에 적용됩니다. [자세히](../news.md)
+- 2026년 6월 5일: 적응형 Markdown 스트리밍이 기기별 등급을 자동 선택하여 모든 기기에서 실시간 출력을 올바르게 유지합니다. 또한 시각적 `/context` 그리드와 `deepseek-v4-flash`용 1M 컨텍스트를 추가했습니다. [자세히](../news.md)
 
-- Apr 07, 2026 (**v3.5.53**): **Telegram photo/voice support, process-tree kill on Bash timeout, Windows shell hints, worker fix**
-  - **Telegram photo vision** — send a photo to the Telegram bridge and CheetahClaws will describe it using the active vision model (GPT-4o, Gemini 2.0 Flash, Claude, etc.). The bot downloads the highest-resolution version, encodes it as Base64, and routes it through the same `_pending_image` path as `/img`. Caption text (or a default "describe this image" prompt) is forwarded alongside the image.
-  - **Telegram voice/audio STT** — send a voice message or audio file to the Telegram bridge and CheetahClaws transcribes it automatically. OGG voice notes are converted to PCM via `ffmpeg` and passed to the local Whisper backend; falls back to the OpenAI Whisper API when `ffmpeg` is unavailable. The transcription is echoed back to the chat before being submitted as a query.
-  - **Process-tree kill on Bash timeout** — when a `Bash` command times out, CheetahClaws now kills the entire child process tree instead of only the shell. On Unix, `os.killpg` sends `SIGKILL` to the process group; on Windows, `taskkill /F /T` terminates all child processes. GUI apps (e.g. PyQt games launched by the agent) no longer leave zombie processes after a timeout. The internal implementation uses `start_new_session=True` instead of `preexec_fn=os.setsid` for thread safety.
-  - **Worker runs all pending tasks by default** — `/worker` previously processed only 1 task per session (a bug). It now runs all pending tasks by default. The `--workers N` flag still limits the batch size when needed.
-  - **Windows shell hints in system prompt** — non-Claude models now receive a Windows-specific shell cheat-sheet in the system prompt (`type` vs `cat`, `dir /s /b` vs `find`, `del` vs `rm`, etc.) so the agent generates correct commands on Windows without manual guidance.
-  - **Bash timeout hints** — the `Bash` tool description now advises the model to use `timeout=120–300` for slow commands (`npm install`, `npx`, `pip install`, builds), reducing spurious 30-second timeouts on package operations.
-  - **Bug fix: background event prompt shows actual cwd** — the yellow re-prompt printed after a background event completed was hardcoded to `[claude-code-local]`; it now shows the real working-directory name (`[{cwd.name}]`), consistent with the main REPL prompt.
 
-- Apr 06, 2026 (**v3.5.53**): **Telegram interactive menus, `/img` alias, `/voice device`, OpenAI/Gemini vision support**
-  - **Telegram interactive menus fixed** — slash commands with interactive input (e.g. `/ollama`, `/permission`, `/checkpoint`) were blocking the Telegram poll loop, making it impossible to respond to the menu prompts. Slash commands now run in a daemon thread (like regular queries), keeping the poll loop free. All interactive menus (`ask_input_interactive`) work correctly over Telegram.
-  - **`/img` alias** — `/img` is now an alias for `/image`, for faster clipboard-image workflows.
-  - **`/voice device`** — new subcommand to list all available input microphones and select one interactively. The selected device index is persisted in the session config and shown in `/voice status`. Useful on systems with multiple audio interfaces (e.g. USB headset + built-in mic).
-  - **Vision support for OpenAI / Gemini models** — `/img` (and `/image`) now sends images in the OpenAI multipart `image_url` format to cloud vision models (GPT-4o, Gemini 2.0 Flash, etc.), in addition to the existing Ollama native format. No configuration change needed — the correct format is selected automatically based on the active provider.
-  - **Bug fix: threading race condition** — `_in_telegram_turn` is now tracked via `threading.local()` per-slash-runner thread instead of a shared config key, eliminating a race condition that could corrupt the flag when a regular message arrived while an interactive slash command was waiting for input.
+더 많은 뉴스는 [여기](../news.md)를 참고하세요.
 
-- Apr 06, 2026 (**v3.5.52**): **Checkpoint system, plan mode, compact, and utility commands, support MiniMax Models, fix telegram bugs** 
-  - **Checkpoint system** (`checkpoint/` package): auto-snapshots conversation state and file changes after every turn. `/checkpoint` lists all snapshots; `/checkpoint <id>` rewinds both files and conversation history to any previous state; `/checkpoint clear` removes all snapshots for the session. `/rewind` is an alias. 100-snapshot sliding window; initial snapshot captured at session start. Throttling: skips when nothing changed. File backups use copy-on-write; snapshots capture post-edit state.
-  - **Plan mode**: `/plan <desc>` enters a read-only analysis mode — Claude may only read the codebase and write to a dedicated plan file (`.nano_claude/plans/<session_id>.md`). All other writes are silently blocked with a helpful message. `/plan` shows the current plan; `/plan done` exits plan mode and restores original permissions; `/plan status` reports whether plan mode is active. Two new agent tools — `EnterPlanMode` and `ExitPlanMode` — let Claude autonomously enter and exit plan mode for complex multi-file tasks; both are auto-approved in all permission modes.
-  - **`/compact [focus]`**: manually trigger conversation compaction at any time. An optional focus string guides the LLM summarizer on what context to preserve. Auto-compact and manual compact both restore plan file context after compaction.
-  - **Utility commands**: `/init` creates a `CLAUDE.md` template in the current directory; `/export [filename]` exports the conversation as Markdown (default) or JSON; `/copy` copies the last assistant response to the clipboard (Windows/macOS/Linux); `/status` shows version, model, provider, permissions, session ID, token usage, and context %; `/doctor` diagnoses installation health (Python version, git, API key + live connectivity test, optional deps, CLAUDE.md presence, checkpoint disk usage, permission mode).
+---
 
-- Apr 06, 2026 (**v3.5.51**): **Project renamed from Nano Claude Code to CheetahClaws**
-  - The project has been rebranded from **Nano Claude Code** to **CheetahClaws** — a more distinctive name that captures the spirit of the tool: a sharp, agile coding assistant. The `Cl` in CheetahClaws is a subtle nod to Claude.
-  - CLI command: `nano_claude` → `cheetahclaws`
-  - PyPI package: `nano-claude-code` → `cheetahclaws`
-  - Config directory: `~/.nano_claude/` → `~/.clawnest/` → `~/.cheetahclaws/`
-  - Main entry point: `nano_claude.py` → `cheetahclaws.py`
-  - All documentation, GitHub URLs, and internal references updated accordingly.
-  - Added **CheetahClaws vs OpenClaw** comparison section to README.
+## 스폰서
 
-For more news, see [here](../news.md)
-
+<div align="center">
+  <a href="https://www.atlascloud.ai/">
+    <img src="https://github.com/SafeRL-Lab/cheetahclaws/blob/main/docs/sponsors/atlas_cloud/ATLAS_CLOUD_LOGO_BLACK.svg" alt="Atlas Cloud" width="180"> 
+  </a>
+</div>
 
 ---
 
 # CheetahClaws
 
-CheetahClaws는 Claude Code를 Python으로 다시 구현한 **가볍고** **사용하기 쉬운** 도구로, Claude, GPT, Gemini, Kimi, Qwen, Zhipu, DeepSeek, MiniMax, 그리고 Ollama 또는 OpenAI 호환 엔드포인트를 통한 로컬 오픈소스 모델 등 **사실상 모든 모델** 을 지원합니다.
+CheetahClaws: **빠르고** **사용하기 쉬운** Python 네이티브 에이전트 하네스 인프라로, Claude, GPT, Gemini, Kimi, Qwen, Zhipu, DeepSeek, MiniMax와 같은 **모든 모델을 지원**하며, Ollama나 OpenAI 호환 엔드포인트를 통해 로컬 오픈소스 모델도 지원합니다.
 
 ---
 
 ## 목차
-  * [Why CheetahClaws](#why-cheetahclaws)
+  * [CheetahClaws를 선택하는 이유](#cheetahclaws를-선택하는-이유)
   * [CheetahClaws vs OpenClaw](#cheetahclaws-vs-openclaw)
-  * [Features](#features)
-  * [Supported Models](#supported-models)
-  * [Installation](#installation)
-  * [Usage: Closed-Source API Models](#usage--closed-source-api-models)
-  * [Usage: Open-Source Models (Local)](#usage--open-source-models--local-)
-  * [Model Name Format](#model-name-format)
-  * [CLI Reference](#cli-reference)
-  * [Slash Commands (REPL)](#slash-commands--repl-)
-  * [Configuring API Keys](#configuring-api-keys)
-  * [Permission System](#permission-system)
-  * [Built-in Tools](#built-in-tools)
-  * [Memory](#memory)
-  * [Skills](#skills)
-  * [Sub-Agents](#sub-agents)
-  * [MCP (Model Context Protocol)](#mcp-model-context-protocol)
-  * [Plugin System](#plugin-system)
-  * [AskUserQuestion Tool](#askuserquestion-tool)
-  * [Task Management](#task-management)
-  * [Voice Input](#voice-input)
-  * [Brainstorm](#brainstorm)
-  * [SSJ Developer Mode](#ssj-developer-mode)
-  * [Telegram Bridge](#telegram-bridge)
-  * [Proactive Background Monitoring](#proactive-background-monitoring)
-  * [Checkpoint System](#checkpoint-system)
-  * [Plan Mode](#plan-mode)
-  * [Context Compression](#context-compression)
-  * [Diff View](#diff-view)
-  * [CLAUDE.md Support](#claudemd-support)
-  * [Session Management](#session-management)
-  * [Cloud Sync (GitHub Gist)](#cloud-sync-github-gist)
-  * [Project Structure](#project-structure)
-  * [FAQ](#faq)
+  * [기능](#기능)
+  * [지원 모델](#지원-모델)
+  * [설치](#설치)
+  * [사용법: 비공개 소스 API 모델](#사용법-비공개-소스-api-모델)
+  * [사용법: 오픈소스 모델 (로컬)](#사용법-오픈소스-모델-로컬)
+  * [모델 이름 형식](#모델-이름-형식)
+  * [트레이딩 에이전트](#트레이딩-에이전트)
+  * [웹 UI](#웹-ui)
+  * [문서](#문서) (모든 기능에 대한 가이드)
+  * [기여하기](#기여하기) · [자주 묻는 질문](#자주-묻는-질문) · [인용](#인용)
 
 
+### 데모
 
+<div align=center>
+<img src="https://raw.githubusercontent.com/SafeRL-Lab/cheetahclaws/main/docs/media/demos/demo.gif" width="850"/>
+</div>
+<div align=center><sub><i>터미널에서의 작업 실행</i></sub></div>
 
-## 왜 CheetahClaws인가
+<br/>
 
-Claude Code is a powerful, production-grade AI coding assistant — but its source code is a compiled, 12 MB TypeScript/Node.js bundle (~1,300 files, ~283K lines). It is tightly coupled to the Anthropic API, hard to modify, and impossible to run against a local or alternative model.
+<div align=center>
+<img src="https://raw.githubusercontent.com/SafeRL-Lab/cheetahclaws/main/docs/media/demos/web_demo.gif" width="850"/>
+</div>
+<div align=center><sub><i>웹 UI: 브라우저 채팅 — 사이드바, 도구 카드, 승인 프롬프트, Markdown 스트리밍</i></sub></div>
 
-**CheetahClaws**는 동일한 핵심 루프를 읽기 쉬운 Python으로 다시 구현했습니다. 가볍고 수정하기 쉬우며, 멀티 프로바이더를 지원하고 로컬 실행도 가능합니다. 필요한 것은 유지하고 불필요한 복잡성은 덜어냈습니다. 자세한 비교는 여기 참고: [English version](../comparison_claude_code_vs_nano_v3.03_en.md) and [Chinese version](../comparison_claude_code_vs_nano_v3.03_cn.md)
+<br/>
 
-### 한눈에 보기
+<div align=center>
+<img src="https://raw.githubusercontent.com/SafeRL-Lab/cheetahclaws/main/docs/media/demos/trading_demo.gif" width="850"/>
+</div>
+<div align=center><sub><i>자율 트레이딩 에이전트</i></sub></div>
+
+> 더 많은 애니메이션 데모(코드 리뷰, `/research`, `/brainstorm`, `/lab`, Telegram/WeChat/Slack 브리지)는 [`docs/media/`](https://github.com/SafeRL-Lab/cheetahclaws/tree/main/docs/media/)에 있습니다.
+
+---
+
+## CheetahClaws를 선택하는 이유
+
+Claude Code는 강력한 프로덕션 등급 AI 코딩 어시스턴트입니다 — 하지만 그 소스는 컴파일된 약 12MB의 TypeScript/Node 번들(약 1,300개 파일, 약 28.3만 줄)로, Anthropic API에 강하게 결합되어 있어 수정하기 어렵고 로컬 또는 대체 모델로 실행하는 것이 불가능합니다.
+
+**CheetahClaws**는 동일한 핵심 루프를 약 9만 줄의 읽기 쉬운 Python으로 다시 구현합니다 — 필요한 것은 유지하고 불필요한 것은 버리며, 멀티 프로바이더 + 로컬 모델 지원을 추가했습니다. 전체 비교: [../guides/comparison.md](../guides/comparison.md).
 
 | 항목 | Claude Code (TypeScript) | CheetahClaws (Python) |
-|-----------|--------------------------|---------------------------|
+|---|---|---|
 | 언어 | TypeScript + React/Ink | Python 3.8+ |
-| Source files | ~1,332 TS/TSX files | 51 Python files |
-| Lines of code | ~283K | ~12K |
-| Built-in tools | 44+ | 27 |
-| Slash commands | 88 | 36 |
-| Voice input | Proprietary Anthropic WebSocket (OAuth required) | Local Whisper / OpenAI API — works offline, no subscription |
-| Model providers | Anthropic only | 8+ (Anthropic · OpenAI · Gemini · Kimi · Qwen · DeepSeek · MiniMax · Ollama · …) |
-| Local models | No | Yes — Ollama, LM Studio, vLLM, any OpenAI-compatible endpoint |
-| Build step required | Yes (Bun + esbuild) | No — run directly with `python cheetahclaws.py` (or install to use `cheetahclaws`) |
-| Runtime extensibility | Closed (compile-time) | Open — `register_tool()` at runtime, Markdown skills, git plugins |
-| Task dependency graph | No | Yes — `blocks` / `blocked_by` edges in `task/` package |
+| 소스 파일 / 코드 줄 수 | 약 1,332개 파일 / 약 28.3만 | 약 315개 파일 / 약 9만 (코어; 테스트 포함 시 약 12.7만) |
+| 내장 도구 / 명령 | 44개 이상 / 88개 | 27개 / 50개 이상 |
+| 모델 프로바이더 | Anthropic만 | 8개 이상 (Anthropic · OpenAI · Gemini · Kimi · Qwen · DeepSeek · MiniMax · …) |
+| 로컬 모델 | 없음 | 있음 — Ollama, LM Studio, vLLM, 모든 OpenAI 호환 엔드포인트 |
+| 빌드 단계 | 있음 (Bun + esbuild) | 없음 — `python cheetahclaws.py` |
+| 확장성 | 폐쇄적 (컴파일 타임) | 개방적 — 런타임에서 `register_tool()`, Markdown 스킬, git 플러그인, MCP |
+| 음성 입력 | 독점 WebSocket (OAuth) | 로컬 Whisper / OpenAI — 오프라인 작동 |
 
-### Claude Code가 더 강한 점
+**Claude Code가 앞서는 부분:** 더 풍부한 React/Ink UI, 더 많은 내장 도구, 엔터프라이즈 기능(MDM, 팀 권한 동기화, OAuth/키체인), AI 기반 메모리 추출, 단일 바이너리 프로덕션 안정성.
 
-- **UI quality** — React/Ink component tree with streaming rendering, fine-grained diff visualization, and dialog systems.
-- **Tool breadth** — 44 tools including `RemoteTrigger`, `EnterWorktree`, and more UI-integrated tools.
-- **Enterprise features** — MDM-managed config, team permission sync, OAuth, keychain storage, GrowthBook feature flags.
-- **AI-driven memory extraction** — `extractMemories` service proactively extracts knowledge from conversations without explicit tool calls.
-- **Production reliability** — single distributable `cli.js`, comprehensive test coverage, version-locked releases.
+**CheetahClaws가 앞서는 부분:** 완전한 로컬/오프라인 지원을 포함한 모든 모델 전환(`--model`/`/model`, 재컴파일 불필요); 하나의 파일에 담긴 읽기 쉬운 에이전트 루프(`agent.py`, 약 740줄); 빌드 불필요; 런타임 도구 등록 + MCP + git 플러그인 + Markdown 스킬; 작업 의존성 그래프(`blocks`/`blocked_by`); 2계층 컨텍스트 압축; 오프라인 음성; 클라우드 세션 동기화; Telegram/WeChat/Slack/QQ 브리지.
 
-### CheetahClaws가 더 강한 점
-
-- **Multi-provider** — switch between Claude, GPT-4o, Gemini 2.5 Pro, DeepSeek, Qwen, MiniMax, or a local Llama model with `--model` or `/model` — no recompile needed.
-- **Local model support** — run entirely offline with Ollama, LM Studio, or any vLLM-hosted model.
-- **Readable source** — the full agent loop is 174 lines (`agent.py`). Any Python developer can read, fork, and extend it in minutes.
-- **Zero build** — `pip install -r requirements.txt` and you're running. Changes take effect immediately.
-- **Dynamic extensibility** — register new tools at runtime with `register_tool(ToolDef(...))`, install skill packs from git URLs, or wire in any MCP server.
-- **Task dependency graph** — `TaskCreate` / `TaskUpdate` support `blocks` / `blocked_by` edges for structured multi-step planning (not available in Claude Code).
-- **Two-layer context compression** — rule-based snip + AI summarization, configurable via `preserve_last_n_turns`.
-- **Notebook editing** — `NotebookEdit` directly manipulates `.ipynb` JSON (replace/insert/delete cells) with no kernel required.
-- **Diagnostics without LSP server** — `GetDiagnostics` chains pyright → mypy → flake8 → py_compile for Python and tsc/shellcheck for other languages, with zero configuration.
-- **Offline voice input** — `/voice` records via `sounddevice`/`arecord`/SoX, transcribes with local `faster-whisper` (no API key, no subscription), and auto-submits. Keyterms from your git branch and project files boost coding-term accuracy.
-- **Cloud session sync** — `/cloudsave` backs up conversations to private GitHub Gists with zero extra dependencies; restore any past session on any machine with `/cloudsave load <id>`.
-- **SSJ Developer Mode** — `/ssj` opens a persistent power menu with 10 workflow shortcuts: Brainstorm → TODO → Worker pipeline, expert debate, code review, README generation, commit helper, and more. Stays open between actions; supports `/command` passthrough.
-- **Telegram Bot Bridge** — `/telegram <token> <chat_id>` turns cheetahclaws into a Telegram bot: receive user messages, run the model, and send back responses — all from your phone. Slash commands pass through, and a typing indicator keeps the chat feeling live.
-- **Worker command** — `/worker` auto-implements pending tasks from `brainstorm_outputs/todo_list.txt`, marks each one done after completion, and supports task selection by number (e.g. `1,4,6`).
-- **Force quit** — 3× Ctrl+C within 2 seconds triggers immediate `os._exit(1)`, unblocking any frozen I/O.
-- **Proactive background monitoring** — `/proactive 5m` activates a sentinel daemon that wakes the agent automatically after a period of inactivity, enabling continuous monitoring loops, scheduled checks, or trading bots without user prompts.
-- **Rich Live streaming rendering** — When `rich` is installed, responses stream as live-updating Markdown in place (no duplicate raw text), with clean tool-call interleaving.
-- **Native Ollama reasoning** — Local reasoning models (deepseek-r1, qwen3, gemma4) stream their `<think>` tokens directly to the terminal via `ThinkingChunk` events; enable with `/verbose` and `/thinking`.
-- **Native Ollama vision** — `/image [prompt]` captures the clipboard and sends it to local vision models (llava, gemma4, llama3.2-vision) via Ollama's native image API. No cloud required.
-- **Reliable multi-line paste** — Bracketed Paste Mode (`ESC[?2004h`) collects any pasted text — code blocks, multi-paragraph prompts, long diffs — as a single turn with zero latency and no blank-line artifacts.
-- **Rich Tab completion** — Tab after `/` shows all commands with one-line descriptions and subcommand hints; subcommand Tab-complete works for `/mcp`, `/plugin`, `/tasks`, `/cloudsave`, and more.
-- **Checkpoint & rewind** — `/checkpoint` lists all auto-snapshots of conversation + file state; `/checkpoint <id>` rewinds both files and history to any earlier point in the session.
-- **Plan mode** — `/plan <desc>` (or the `EnterPlanMode` tool) puts Claude into a structured read-only analysis phase; only the plan file is writable. Claude writes a detailed plan, then `/plan done` restores full write permissions for implementation.
+**대상 사용자:** 로컬/비-Anthropic 코딩 어시스턴트를 원하는 개발자, 에이전트형 어시스턴트가 어떻게 작동하는지 연구하는 연구자, 그리고 Node.js 빌드 체인 없이 해킹 가능한 베이스라인이 필요한 팀.
 
 ---
 
 ## CheetahClaws vs OpenClaw
 
-[OpenClaw](https://github.com/openclaw/openclaw) is another popular open-source AI assistant built on TypeScript/Node.js. The two projects have **different primary goals** — here is how they compare.
-
-### 한눈에 보기
+[OpenClaw](https://github.com/openclaw/openclaw)는 또 다른 인기 있는 오픈소스 어시스턴트(TypeScript/Node)입니다. 두 프로젝트는 **주요 목표가 다릅니다** — OpenClaw는 메시징 채널 전반에 걸친 개인 생활 어시스턴트이고, CheetahClaws는 개발자/코딩 도구입니다.
 
 | 항목 | OpenClaw (TypeScript) | CheetahClaws (Python) |
-|-----------|----------------------|---------------------|
-| 언어 | TypeScript + Node.js | Python 3.8+ |
-| Source files | ~10,349 TS/JS files | 51 Python files |
-| Lines of code | ~245K | ~12K |
-| Primary focus | Personal life assistant across messaging channels | AI **coding** assistant / developer tool |
-| Architecture | Always-on Gateway daemon + companion apps | Zero-install terminal REPL |
-| Messaging channels | 20+ (WhatsApp · Telegram · Slack · Discord · Signal · iMessage · Matrix · WeChat · …) | Terminal + optional Telegram bridge |
-| Model providers | Multiple (cloud-first) | 7+ including full local support (Ollama · vLLM · LM Studio · …) |
-| Local / offline models | Limited | Full — Ollama, vLLM, any OpenAI-compatible endpoint |
-| Voice | Wake word · PTT · Talk Mode (macOS/iOS/Android) | Offline Whisper STT (local, no API key) |
-| Code editing tools | Browser control, Canvas workspace | Read · Write · Edit · Bash · Glob · Grep · NotebookEdit · GetDiagnostics |
-| Build step required | Yes (`pnpm install` + daemon setup) | No — `pip install` and run |
-| Mobile companion | macOS menu bar + iOS/Android apps | — |
-| Live Canvas / UI | Yes (A2UI agent-driven visual workspace) | — |
-| MCP support | — | Yes (stdio/SSE/HTTP) |
-| Runtime extensibility | Skills platform (bundled/managed/workspace) | `register_tool()` at runtime, MCP, git plugins, Markdown skills |
-| Hackability | Large codebase (245K lines), harder to modify | ~12K lines — full agent loop visible in one file |
+|---|---|---|
+| 코드 줄 수 | 약 24.5만 (약 10,349개 파일) | 약 9만 코어 (약 315개 파일) |
+| 주요 초점 | 채널 전반의 개인 어시스턴트 | AI 코딩 어시스턴트 / 개발 도구 |
+| 아키텍처 | 상시 실행 Gateway 데몬 + 앱 | 설치 불필요 터미널 REPL |
+| 메시징 채널 | 20개 이상 (WhatsApp · Signal · iMessage · Discord · Matrix · …) | 터미널 + Telegram · WeChat · Slack · QQ 브리지 |
+| 로컬 / 오프라인 모델 | 제한적 | 완전 지원 — Ollama · vLLM · LM Studio · 모든 OpenAI 호환 |
+| 코드 편집 도구 | 브라우저 제어, Canvas | Read · Write · Edit · Bash · Glob · Grep · NotebookEdit · GetDiagnostics |
+| 모바일 / Live Canvas | 있음 (메뉴 바 + iOS/Android, A2UI) | — |
+| MCP 지원 | — | 있음 (stdio/SSE/HTTP) |
+| 해킹 가능성 | 24.5만 줄, 수정 더 어려움 | 약 9만 줄 — 에이전트 루프가 하나의 파일에 |
 
-### Where OpenClaw wins
-
-- **Omni-channel inbox** — connects to 20+ messaging platforms (WhatsApp, Signal, iMessage, Discord, Teams, Matrix, WeChat…); users interact from wherever they already are.
-- **Always-on daemon** — Gateway runs as a background service (launchd/systemd); no terminal required for day-to-day use.
-- **Mobile-first** — macOS menu bar, iOS Voice Wake / Talk Mode, Android camera/screen recording — feels like a native app, not a CLI tool.
-- **Live Canvas** — agent-driven visual workspace rendered in the browser; supports A2UI push/eval/snapshot.
-- **Browser automation** — dedicated Chrome/Chromium profile with snapshot, actions, and upload tools.
-- **Production reliability** — versioned npm releases, comprehensive CI, onboarding wizard, `openclaw doctor` diagnostics.
-
-### CheetahClaws가 더 강한 점
-
-- **Coding toolset** — Read/Write/Edit/Bash/Glob/Grep/NotebookEdit/GetDiagnostics are purpose-built for software development; CheetahClaws understands diffs, file trees, and code structure.
-- **True local model support** — full Ollama/vLLM/LM Studio integration with streaming, tool-calling, and vision — no cloud required.
-- **8+ model providers** — switch between Claude, GPT-4o, Gemini, DeepSeek, Qwen, MiniMax, and local models with a single `--model` flag.
-- **Hackable in minutes** — 12K lines of readable Python; the entire agent loop is in `agent.py`; extend with `register_tool()` at runtime without rebuilding.
-- **Zero setup** — `pip install cheetahclaws` and run `cheetahclaws`; no daemon, no pairing, no onboarding wizard.
-- **MCP support** — connect any MCP server (stdio/SSE/HTTP); tools auto-registered.
-- **SSJ Developer Mode** — `/ssj` power menu chains Brainstorm → TODO → Worker → Debate in a persistent interactive session; automates entire dev workflows.
-- **Offline voice** — `/voice` transcribes locally with `faster-whisper`; no subscription, no OAuth, works without internet.
-- **Session cloud sync** — `/cloudsave` backs up full conversations to private GitHub Gists with zero extra dependencies.
-
-### 언제 무엇을 선택할지
-
-| If you want… | Use |
+| 원하는 것이… | 선택 |
 |---|---|
-| A personal assistant you can message on WhatsApp/Signal/Discord | **OpenClaw** |
-| An AI coding assistant in your terminal | **CheetahClaws** |
-| Full offline / local model support | **CheetahClaws** |
-| A mobile-friendly always-on experience | **OpenClaw** |
-| To read and modify the source in an afternoon | **CheetahClaws** |
-| Browser automation and a visual Canvas | **OpenClaw** |
-| Multi-provider LLM switching without rebuilding | **CheetahClaws** |
+| WhatsApp/Signal/Discord의 개인 어시스턴트, 모바일 우선, 브라우저 자동화 + Canvas | **OpenClaw** |
+| 터미널의 AI 코딩 어시스턴트, 완전한 오프라인/로컬 모델, 멀티 프로바이더 전환, 하루 오후면 읽을 수 있는 소스 | **CheetahClaws** |
 
----
-
-### 핵심 설계 차이
-
-**Agent loop** — CheetahClaws uses a Python generator that `yield`s typed events (`TextChunk`, `ToolStart`, `ToolEnd`, `TurnDone`). The entire loop is visible in one file, making it easy to add hooks, custom renderers, or logging.
-
-**Tool registration** — every tool is a `ToolDef(name, schema, func, read_only, concurrent_safe)` dataclass. Any module can call `register_tool()` at import time; MCP servers, plugins, and skills all use the same mechanism.
-
-**Context compression**
-
-| | Claude Code | CheetahClaws |
-|-|-------------|-----------------|
-| Trigger | Exact token count | `len / 3.5` estimate, fires at 70 % |
-| Layer 1 | — | Snip: truncate old tool outputs (no API cost) |
-| Layer 2 | AI summarization | AI summarization of older turns |
-| Control | System-managed | `preserve_last_n_turns` parameter |
-
-**Memory** — Claude Code's `extractMemories` service has the model proactively surface facts. CheetahClaws's `memory/` package is tool-driven: the model calls `MemorySave` explicitly, which is more predictable and auditable. Each memory now carries `confidence`, `source`, `last_used_at`, and `conflict_group` metadata; search re-ranks by confidence × recency; and `/memory consolidate` offers a manual consolidation pass without silently modifying memories in the background.
-
-### 누가 CheetahClaws를 사용하면 좋은가
-
-- Developers who want to **use a local or non-Anthropic model** as their coding assistant.
-- Researchers studying **how agentic coding assistants work** — the entire system fits in one screen.
-- Teams who need a **hackable baseline** to add proprietary tools, custom permission policies, or specialised agent types.
-- Anyone who wants Claude Code-style productivity **without a Node.js build chain**.
+> 전체 비교 — 양측의 강점 + 핵심 설계 차이(에이전트 루프, 도구 등록, 컨텍스트 압축, 메모리): [../guides/comparison.md](../guides/comparison.md#cheetahclaws-vs-openclaw).
 
 ---
 
 ## 기능
 
-| 기능 | 세부사항 |
+| 기능 | 상세 |
 |---|---|
-| Multi-provider | Anthropic · OpenAI · Gemini · Kimi · Qwen · Zhipu · DeepSeek · MiniMax · Ollama · LM Studio · Custom endpoint |
-| Interactive REPL | readline history, Tab-complete slash commands with descriptions + subcommand hints; Bracketed Paste Mode for reliable multi-line paste |
-| Agent loop | Streaming API + automatic tool-use loop |
-| 27 built-in tools | Read · Write · Edit · Bash · Glob · Grep · WebFetch · WebSearch · **NotebookEdit** · **GetDiagnostics** · MemorySave · MemoryDelete · MemorySearch · MemoryList · Agent · SendMessage · CheckAgentResult · ListAgentTasks · ListAgentTypes · Skill · SkillList · AskUserQuestion · TaskCreate/Update/Get/List · **SleepTimer** · **EnterPlanMode** · **ExitPlanMode** · *(MCP + plugin tools auto-added at startup)* |
-| MCP integration | Connect any MCP server (stdio/SSE/HTTP), tools auto-registered and callable by Claude |
-| Plugin system | Install/uninstall/enable/disable/update plugins from git URLs or local paths; multi-scope (user/project); recommendation engine |
-| AskUserQuestion | Claude can pause and ask the user a clarifying question mid-task, with optional numbered choices |
-| Task management | TaskCreate/Update/Get/List tools; sequential IDs; dependency edges; metadata; persisted to `.cheetahclaws/tasks.json`; `/tasks` REPL command |
-| Diff view | Git-style red/green diff display for Edit and Write |
-| Context compression | Auto-compact long conversations to stay within model limits |
-| Persistent memory | Dual-scope memory (user + project) with 4 types, confidence/source metadata, conflict detection, recency-weighted search, `last_used_at` tracking, and `/memory consolidate` for auto-extraction |
-| Multi-agent | Spawn typed sub-agents (coder/reviewer/researcher/…), git worktree isolation, background mode |
-| Skills | Built-in `/commit` · `/review` + custom markdown skills with argument substitution and fork/inline execution |
-| Plugin tools | Register custom tools via `tool_registry.py` |
-| Permission system | `auto` / `accept-edits` / `accept-all` / `manual` / `plan` modes |
-| Checkpoints | Auto-snapshot conversation + file state after each turn; `/checkpoint` to list, `/checkpoint <id>` to rewind; `/rewind` alias; 100-snapshot sliding window |
-| Plan mode | `/plan <desc>` enters read-only analysis mode; Claude writes only to the plan file; `EnterPlanMode` / `ExitPlanMode` agent tools for autonomous planning |
-| 36 slash commands | `/model` · `/config` · `/save` · `/cost` · `/memory` · `/skills` · `/agents` · `/voice` · `/proactive` · `/checkpoint` · `/plan` · `/compact` · `/status` · `/doctor` · … |
-| Voice input | Record → transcribe → auto-submit. Backends: `sounddevice` / `arecord` / SoX + `faster-whisper` / `openai-whisper` / OpenAI API. Works fully offline. |
-| Brainstorm | `/brainstorm [topic]` generates N expert personas suited to the topic (2–100, default 5, chosen interactively), runs an iterative debate, saves results to `brainstorm_outputs/`, and synthesizes a Master Plan + auto-generates `brainstorm_outputs/todo_list.txt`. |
-| SSJ Developer Mode | `/ssj` opens a persistent interactive power menu with 10 shortcuts: Brainstorm, TODO viewer, Worker, Expert Debate, Propose, Review, Readme, Commit, Scan, Promote. Stays open between actions; `/command` passthrough supported. Debate shows animated per-round spinner and saves result next to the debated file. |
-| Worker | `/worker [task#s]` reads `brainstorm_outputs/todo_list.txt`, implements each pending task with a dedicated model prompt, and marks it done (`- [x]`). Supports task selection (`/worker 1,4,6`), custom path (`--path`), and worker count limit (`--workers`). Detects and redirects accidental brainstorm `.md` paths. |
-| Telegram bridge | `/telegram <token> <chat_id>` starts a bot bridge: receive messages from Telegram, run the model, and reply — all from your phone. Typing indicator, slash command passthrough (including interactive menus), and auto-start on launch if configured. |
-| Vision input | `/image` (or `/img`) captures the clipboard image and sends it to any vision-capable model — Ollama (`llava`, `gemma4`, `llama3.2-vision`) via native format, or cloud models (GPT-4o, Gemini 2.0 Flash, …) via OpenAI `image_url` multipart format. Requires `pip install cheetahclaws[vision]`; Linux also needs `xclip`. |
-| Proactive monitoring | `/proactive [duration]` starts a background sentinel daemon; agent wakes automatically after inactivity, enabling continuous monitoring loops without user prompts |
-| Force quit | 3× Ctrl+C within 2 seconds triggers `os._exit(1)` — kills the process immediately regardless of blocking I/O |
-| Rich Live streaming | When `rich` is installed, responses render as live-updating Markdown in place. Long responses that would overflow the terminal keep rendering live but show only the most recent screenful (a bounded tail window, terminal-height / wrap aware); the complete output is committed when the response finishes, preventing the duplicate or stale frames some terminals leave behind. Plain streaming is used only as a fallback. Auto-disabled in SSH sessions; override with `/config rich_live=false`. |
-| Context injection | Auto-loads `CLAUDE.md`, git status, cwd, persistent memory |
-| Session persistence | Autosave on exit to `daily/YYYY-MM-DD/` (per-day limit) + `history.json` (master, all sessions) + `session_latest.json` (/resume); sessions include `session_id` and `saved_at` metadata; `/load` grouped by date |
-| Cloud sync | `/cloudsave` syncs sessions to private GitHub Gists; auto-sync on exit; load from cloud by Gist ID. No new dependencies (stdlib `urllib`). |
-| Extended Thinking | Toggle on/off for Claude models; native `<think>` block streaming for local Ollama reasoning models (deepseek-r1, qwen3, gemma4) |
-| Cost tracking | Token usage + estimated USD cost |
-| Non-interactive mode | `--print` flag for scripting / CI |
+| 멀티 프로바이더 | Anthropic · OpenAI · Gemini · Kimi · Qwen · Zhipu · DeepSeek · MiniMax · Ollama · LM Studio · 커스텀 엔드포인트 |
+| 에이전트 루프 | 스트리밍 API + 자동 도구 사용 루프; 전체 루프가 `agent.py`에 있음 |
+| 28개 내장 도구 | Read · Write · Edit · Bash · Glob · Grep · WebFetch · WebSearch · NotebookEdit · GetDiagnostics · Memory* · Agent/SendMessage · Skill · AskUserQuestion · Task* · SleepTimer · EnterPlanMode/ExitPlanMode · *(MCP + 플러그인 도구 자동 추가)* |
+| MCP 통합 | 모든 MCP 서버 연결(stdio/SSE/HTTP); 도구 자동 등록 — [확장 가이드](../guides/extensions.md) 참고 |
+| 플러그인 시스템 | git URL 또는 로컬 경로에서 플러그인 설치/활성화/업데이트; 멀티 스코프; 추천 엔진 |
+| 작업 관리 | `TaskCreate/Update/Get/List`, 순차 ID, 의존성 엣지, `.cheetahclaws/tasks.json`에 영속화 |
+| 컨텍스트 압축 | 협력하는 네 개의 계층 — 동적 `max_tokens` 상한, 모델별 컨텍스트 윈도우 레지스트리, 70%에서의 2계층 축약 + AI 요약, 과대 도구 출력에 대한 자동 팬아웃. [자세히](../guides/reference.md) |
+| 영속 메모리 | 이중 스코프(사용자 + 프로젝트), 4가지 유형, 신뢰도/출처 메타데이터, 충돌 감지, 최신성 가중 검색, `/memory consolidate`. 검증 기준 노후화 — 최신성은 파일 mtime이 아닌 `last_verified` 날짜를 추적하므로, 메모리를 읽는 것만으로 거짓 갱신할 수 없고 `MemoryVerify`만이 시계를 재설정합니다. [자세히](../guides/features.md) |
+| 멀티 에이전트 | 유형화된 서브 에이전트(coder/reviewer/researcher/…) 생성, git-worktree 격리, 백그라운드 모드 |
+| 권한 시스템 | `auto` / `accept-edits` / `accept-all` / `manual` / `plan` 모드 (`accept-edits` = 편집은 자동 실행하되 다른 Bash는 확인; 하드 거부 목록이 모든 모드에서 호스트 파괴 명령을 차단) |
+| 체크포인트 & 플랜 모드 | 매 턴 대화 + 파일 자동 스냅샷(`/checkpoint`, `/rewind`); `/plan` 읽기 전용 분석 모드 |
+| 슬래시 명령 & 테마 | Tab 자동 완성이 되는 50개 이상의 슬래시 명령; `/theme`가 엄선된 15개 팔레트 제공 |
+| Brainstorm → Worker | `/brainstorm`이 N-페르소나 토론을 실행 → `todo_list.txt`; `/worker`가 대기 중인 작업을 자동 구현 |
+| SSJ 개발자 모드 | `/ssj` — Brainstorm, Worker, Review, Trading, Agent, Video/TTS, Monitor 등을 연결하는 영속적 파워 메뉴 |
+| 트레이딩 에이전트 | `/trading` 멀티 에이전트 분석, 백테스팅, 모의 거래 보정, MV 포트폴리오. [가이드](../guides/trading.md) |
+| Monitor | `/monitor`가 예약된 스케줄로 AI 모니터링 주제(arxiv / 주식 / 암호화폐 / 뉴스 / 커스텀)를 구독하고 보고서를 브리지/콘솔로 푸시 |
+| Research (멀티 소스) | `/research`가 **20개 소스**로 팬아웃하며 관심도 히트 표, 개체 추출, 트렌드 스파크라인, 비교 모드 제공. [가이드](../guides/research.md) |
+| 자율 에이전트 | `/agent` Markdown 템플릿 기반 백그라운드 루프; 반복 요약을 브리지로 푸시; 정체 중단 가드 |
+| 브리지 + 원격 제어 | Telegram · WeChat · Slack · QQ — 채팅 왕복, 슬래시 패스스루, 브리지별 작업 큐(`!jobs`/`!retry`/`!cancel`). [가이드](../guides/bridges.md) |
+| 음성 / 비전 / 비디오 / TTS | 오프라인 Whisper `/voice`; `/image` 클립보드 비전(로컬 + 클라우드); `/video` + `/tts` 콘텐츠 팩토리. [가이드](../guides/voice-and-video.md) |
+| 웹 UI | `--web` — 멀티 사용자 브라우저 채팅 + PTY 터미널. [가이드](../guides/web-ui.md) |
+| 그 외 | Tmux 통합 · `!cmd` 셸 이스케이프 · 능동적 모니터링 · 3×Ctrl+C 강제 종료 · 세션 영속성 · `/cloudsave` GitHub-Gist 동기화 · 비용 추적 · `--print` 비대화형 모드 |
+
+> **전체 기능 레퍼런스** — 위의 모든 항목을 완전한 상세와 함께(컨텍스트 압축 계층, 자동 팬아웃, 15개 테마, Trading/Research/Agents 전체 설명 …): [../guides/features.md](../guides/features.md).
 
 ---
 
 ## 지원 모델
 
-### Closed-Source (API)
+### 비공개 소스 (API)
 
-| 제공자 | 모델 | 컨텍스트 | 강점 | API 키 환경변수 |
-|---|---|---|---|---|
-| **Anthropic** | `claude-opus-4-6` | 200k | Most capable, best for complex reasoning | `ANTHROPIC_API_KEY` |
-| **Anthropic** | `claude-sonnet-4-6` | 200k | Balanced speed & quality | `ANTHROPIC_API_KEY` |
-| **Anthropic** | `claude-haiku-4-5-20251001` | 200k | Fast, cost-efficient | `ANTHROPIC_API_KEY` |
-| **OpenAI** | `gpt-4o` | 128k | Strong multimodal & coding | `OPENAI_API_KEY` |
-| **OpenAI** | `gpt-4o-mini` | 128k | Fast, cheap | `OPENAI_API_KEY` |
-| **OpenAI** | `o3-mini` | 200k | Strong reasoning | `OPENAI_API_KEY` |
-| **OpenAI** | `o1` | 200k | Advanced reasoning | `OPENAI_API_KEY` |
-| **Google** | `gemini-2.5-pro-preview-03-25` | 1M | Long context, multimodal | `GEMINI_API_KEY` |
-| **Google** | `gemini-2.0-flash` | 1M | Fast, large context | `GEMINI_API_KEY` |
-| **Google** | `gemini-1.5-pro` | 2M | Largest context window | `GEMINI_API_KEY` |
-| **Moonshot (Kimi)** | `moonshot-v1-8k` | 8k | Chinese & English | `MOONSHOT_API_KEY` |
-| **Moonshot (Kimi)** | `moonshot-v1-32k` | 32k | Chinese & English | `MOONSHOT_API_KEY` |
-| **Moonshot (Kimi)** | `moonshot-v1-128k` | 128k | Long context | `MOONSHOT_API_KEY` |
-| **Alibaba (Qwen)** | `qwen-max` | 32k | Best Qwen quality | `DASHSCOPE_API_KEY` |
-| **Alibaba (Qwen)** | `qwen-plus` | 128k | Balanced | `DASHSCOPE_API_KEY` |
-| **Alibaba (Qwen)** | `qwen-turbo` | 1M | Fast, cheap | `DASHSCOPE_API_KEY` |
-| **Alibaba (Qwen)** | `qwq-32b` | 32k | Strong reasoning | `DASHSCOPE_API_KEY` |
-| **Zhipu (GLM)** | `glm-4-plus` | 128k | Best GLM quality | `ZHIPU_API_KEY` |
-| **Zhipu (GLM)** | `glm-4` | 128k | General purpose | `ZHIPU_API_KEY` |
-| **Zhipu (GLM)** | `glm-4-flash` | 128k | Free tier available | `ZHIPU_API_KEY` |
-| **DeepSeek** | `deepseek-chat` | 64k | Strong coding | `DEEPSEEK_API_KEY` |
-| **DeepSeek** | `deepseek-reasoner` | 64k | Chain-of-thought reasoning | `DEEPSEEK_API_KEY` |
-| **MiniMax** | `MiniMax-Text-01` | 1M | Long context, strong reasoning | `MINIMAX_API_KEY` |
-| **MiniMax** | `MiniMax-VL-01` | 1M | Vision + language | `MINIMAX_API_KEY` |
-| **MiniMax** | `abab6.5s-chat` | 256k | Fast, cost-efficient | `MINIMAX_API_KEY` |
-| **MiniMax** | `abab6.5-chat` | 256k | Balanced quality | `MINIMAX_API_KEY` |
-
-### Open-Source (Local via Ollama)
-
-| 모델 | 크기 | 강점 | pull 명령어 |
+| 프로바이더 | 예시 모델 | 컨텍스트 | API 키 환경 변수 |
 |---|---|---|---|
-| `llama3.3` | 70B | General purpose, strong reasoning | `ollama pull llama3.3` |
-| `llama3.2` | 3B / 11B | Lightweight | `ollama pull llama3.2` |
-| `qwen2.5-coder` | 7B / 32B | **Best for coding tasks** | `ollama pull qwen2.5-coder` |
-| `qwen2.5` | 7B / 72B | Chinese & English | `ollama pull qwen2.5` |
-| `deepseek-r1` | 7B–70B | Reasoning, math | `ollama pull deepseek-r1` |
-| `deepseek-coder-v2` | 16B | Coding | `ollama pull deepseek-coder-v2` |
-| `mistral` | 7B | Fast, efficient | `ollama pull mistral` |
-| `mixtral` | 8x7B | Strong MoE model | `ollama pull mixtral` |
-| `phi4` | 14B | Microsoft, strong reasoning | `ollama pull phi4` |
-| `gemma3` | 4B / 12B / 27B | Google open model | `ollama pull gemma3` |
-| `codellama` | 7B / 34B | Code generation | `ollama pull codellama` |
-| `llava` | 7B / 13B | **Vision** — image understanding | `ollama pull llava` |
-| `llama3.2-vision` | 11B | **Vision** — multimodal reasoning | `ollama pull llama3.2-vision` |
+| **Anthropic** | `claude-opus-4-6` · `claude-sonnet-4-6` · `claude-haiku-4-5-20251001` | 200k | `ANTHROPIC_API_KEY` |
+| **OpenAI** | `gpt-4o` · `gpt-4.1` · `gpt-5` · `o3` · `o4-mini` | 128–200k | `OPENAI_API_KEY` |
+| **Google** | `gemini-2.5-pro` · `gemini-2.0-flash` · `gemini-1.5-pro` | 1–2M | `GEMINI_API_KEY` |
+| **Moonshot (Kimi)** | `moonshot-v1-8k` / `-32k` / `-128k` | 8–128k | `MOONSHOT_API_KEY` |
+| **Alibaba (Qwen)** | `qwen-max` · `qwen-plus` · `qwen-turbo` · `qwq-32b` | 32k–1M | `DASHSCOPE_API_KEY` |
+| **Zhipu (GLM)** | `glm-4-plus` · `glm-4` · `glm-4-flash` (무료 티어) | 128k | `ZHIPU_API_KEY` |
+| **DeepSeek** | `deepseek-chat` · `deepseek-reasoner` | 64k | `DEEPSEEK_API_KEY` |
+| **MiniMax** | `MiniMax-Text-01` · `MiniMax-VL-01` · `abab6.5s-chat` | 256k–1M | `MINIMAX_API_KEY` |
+| **AWS Bedrock / Azure / Vertex** _(litellm 경유)_ | `litellm/<provider>/<model>` | 다양 | 프로바이더별 상이 |
 
-> **Note:** Tool calling requires a model that supports function calling. Recommended local models: `qwen2.5-coder`, `llama3.3`, `mistral`, `phi4`.
+> **`litellm/` 어댑터:** 하나의 SDK 뒤에서 100개 이상의 프로바이더로 라우팅합니다 — 주로 까다로운 인증이 필요한 업스트림(Bedrock SigV4, Azure 배포 라우팅, Vertex 서비스 계정 JWT)을 위한 것입니다. 일반적인 OpenAI 형태의 엔드포인트에는 의존성이 없는 `custom/` 어댑터를 선호하세요. `pip install ".[litellm]"`로 설치합니다. [recipes.md](../guides/recipes.md#alternative-cloud-providers-with-non-trivial-auth-via-the-litellm-provider) 참고.
 
-> **Reasoning models:** `deepseek-r1`, `qwen3`, and `gemma4` stream native `<think>` blocks. Enable with `/verbose` and `/thinking` to see thoughts in the terminal. Note: models fed a large system prompt (like cheetahclaws's 25 tool schemas) may suppress their thinking phase to avoid breaking the expected JSON format — this is model behavior, not a bug.
+### 오픈소스 (Ollama 경유 로컬)
+
+| 모델 | 크기 | 강점 | Pull |
+|---|---|---|---|
+| `qwen2.5-coder` | 7B / 32B | **코딩에 최적** | `ollama pull qwen2.5-coder` |
+| `llama3.3` / `llama3.2` | 70B / 3B–11B | 범용 | `ollama pull llama3.3` |
+| `deepseek-r1` | 7B–70B | 추론, 수학 | `ollama pull deepseek-r1` |
+| `mistral` / `mixtral` | 7B / 8x7B | 빠름 / 강력한 MoE | `ollama pull mistral` |
+| `phi4` · `gemma3` · `codellama` | 14B · 4–27B · 7–34B | 추론 / 오픈 / 코드 | `ollama pull phi4` |
+| `llava` · `llama3.2-vision` | 7–13B · 11B | **비전** | `ollama pull llava` |
+
+> **도구 호출**에는 함수 호출 모델이 필요합니다 — 권장: `qwen2.5-coder`, `llama3.3`, `mistral`, `phi4`. Ollama의 구조화된 필드 대신 도구 호출을 **텍스트**(`<tool_call>…</tool_call>`, `[TOOL_CALLS]…`)로 내보내는 모델은 자동 복구되어, 이에 대해 그저 이야기만 하는 것이 아니라 즉시 도구를 실행합니다. 추론 모델(`deepseek-r1`, `qwen3`, `gemma4`)은 네이티브 `<think>` 블록을 스트리밍합니다; `/verbose` + `/thinking`으로 활성화하세요.
 
 ---
 
 ## 설치
 
-### Recommended: install as a global command with `uv`
+```bash
+pip install cheetahclaws
+```
 
-[uv](https://docs.astral.sh/uv/) installs `cheetahclaws` into an isolated environment and puts it on your PATH so you can run it from anywhere:
+**Linux, macOS, WSL2, Android(Termux)**에서 작동합니다(Python 3.10+). 첫 실행 시 프로바이더 + API 키 설정을 안내하며, `cheetahclaws --setup`으로 언제든 다시 실행할 수 있습니다.
+
+> **Windows:** 네이티브 Windows는 지원되지 않습니다 — [WSL2](https://learn.microsoft.com/en-us/windows/wsl/install)를 사용하세요. **Android/Termux:** `pkg install python git && pip install cheetahclaws`.
+
+### 대안: 원라인 설치 스크립트
 
 ```bash
-# Install uv (if not already installed)
-curl -LsSf https://astral.sh/uv/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/SafeRL-Lab/cheetahclaws/main/scripts/install.sh | bash
+```
 
-# Clone and install
-git clone https://github.com/SafeRL-Lab/cheetahclaws
+설치 후 `cheetahclaws`가 PATH에 등록되도록 셸을 다시 로드하세요:
+
+```bash
+source ~/.zshrc     # macOS
+# or: source ~/.bashrc   # Linux
+cheetahclaws        # start chatting!
+```
+
+### 대안: 소스 코드에서 `pip`으로 설치
+
+```bash
+git clone https://github.com/SafeRL-Lab/cheetahclaws.git
 cd cheetahclaws
-uv tool install .
+pip install .                       # then: cheetahclaws
+git pull && pip install --force-reinstall .   # to update
 ```
 
-After that, `cheetahclaws` is available as a global command:
+#### 선택적 추가 패키지
 
 ```bash
-cheetahclaws                        # start REPL
-cheetahclaws --model gpt-4o         # choose a model
-cheetahclaws -p "explain this"      # non-interactive
+pip install ".[voice]"      # voice input (sounddevice + faster-whisper)
+pip install ".[vision]"     # clipboard image capture (Pillow)
+pip install ".[autosuggest]"# typing-time slash autosuggest (prompt_toolkit)
+pip install ".[browser]"    # headless browser (playwright); then: playwright install chromium
+pip install ".[files]"      # PDF + Excel reading (pymupdf, openpyxl)
+pip install ".[ocr]"        # image OCR (pytesseract)
+pip install ".[trading]"    # trading agent (yfinance, rank-bm25)
+pip install ".[qq]"         # QQ bot bridge (qq-botpy)
+pip install ".[litellm]"    # AWS Bedrock / Azure / Vertex auth via litellm
+pip install ".[all]"        # everything above
 ```
 
-To update after pulling new code:
+### 대안: `uv`로 설치
 
 ```bash
-uv tool install . --reinstall
+git clone https://github.com/SafeRL-Lab/cheetahclaws.git && cd cheetahclaws
+uv tool install ".[all]"            # minimal: uv tool install .
+uv tool install ".[all]" --reinstall   # update   ·   uv tool uninstall cheetahclaws
 ```
 
-To uninstall:
+### 대안: 소스에서 직접 실행 (설치 불필요)
 
 ```bash
-uv tool uninstall cheetahclaws
-```
-
-### Alternative: run directly from the repo
-
-```bash
-git clone https://github.com/SafeRL-Lab/cheetahclaws
-cd cheetahclaws
-
+git clone https://github.com/SafeRL-Lab/cheetahclaws.git && cd cheetahclaws
 pip install -r requirements.txt
-# or manually (sounddevice is optional — only needed for /voice):
-pip install anthropic openai httpx rich
-pip install sounddevice  # optional: voice input
-
-python cheetahclaws.py
+python cheetahclaws.py              # changes take effect immediately
 ```
 
 ---
 
-## 사용법: 폐쇄형 API 모델
+## 사용법: 비공개 소스 API 모델
 
-### Anthropic Claude
-
-Get your API key at [console.anthropic.com](https://console.anthropic.com).
+모든 클라우드 프로바이더는 동일한 패턴을 따릅니다 — API 키를 export하고([지원 모델](#비공개-소스-api) 표에서 환경 변수 이름 확인) 모델을 선택하세요:
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-api03-...
-
-# Default model (claude-opus-4-6)
-cheetahclaws
-
-# Choose a specific model
-cheetahclaws --model claude-sonnet-4-6
-cheetahclaws --model claude-haiku-4-5-20251001
-
-# Enable Extended Thinking
-cheetahclaws --model claude-opus-4-6 --thinking --verbose
+export ANTHROPIC_API_KEY=sk-ant-...     # or OPENAI_API_KEY / GEMINI_API_KEY / DEEPSEEK_API_KEY / …
+cheetahclaws                            # default model
+cheetahclaws --model gpt-4o             # pick any model
+cheetahclaws --model deepseek-chat --thinking --verbose
 ```
 
-### OpenAI GPT
+프로바이더 키 발급 페이지: [Anthropic](https://console.anthropic.com) · [OpenAI](https://platform.openai.com) · [Gemini](https://aistudio.google.com) · [Kimi](https://platform.moonshot.cn) · [Qwen](https://dashscope.aliyun.com) · [Zhipu](https://open.bigmodel.cn) · [DeepSeek](https://platform.deepseek.com) · [MiniMax](https://platform.minimaxi.chat).
 
-Get your API key at [platform.openai.com](https://platform.openai.com).
+**AWS Bedrock / Azure / Vertex**는 `litellm/<provider>/<model>` 형식을 사용합니다(`pip install ".[litellm]"`) — 전체 환경 변수 레시피는 [recipes.md](../guides/recipes.md#alternative-cloud-providers-with-non-trivial-auth-via-the-litellm-provider)에 있습니다.
 
-```bash
-export OPENAI_API_KEY=sk-...
-
-cheetahclaws --model gpt-4o
-cheetahclaws --model gpt-4o-mini
-cheetahclaws --model gpt-4.1-mini
-cheetahclaws --model o3-mini
-```
-
-### Google Gemini
-
-Get your API key at [aistudio.google.com](https://aistudio.google.com).
-
-```bash
-export GEMINI_API_KEY=AIza...
-
-cheetahclaws --model gemini/gemini-2.0-flash
-cheetahclaws --model gemini/gemini-1.5-pro
-cheetahclaws --model gemini/gemini-2.5-pro-preview-03-25
-```
-
-### Kimi (Moonshot AI)
-
-Get your API key at [platform.moonshot.cn](https://platform.moonshot.cn).
-
-```bash
-export MOONSHOT_API_KEY=sk-...
-
-cheetahclaws --model kimi/moonshot-v1-32k
-cheetahclaws --model kimi/moonshot-v1-128k
-```
-
-### Qwen (Alibaba DashScope)
-
-Get your API key at [dashscope.aliyun.com](https://dashscope.aliyun.com).
-
-```bash
-export DASHSCOPE_API_KEY=sk-...
-
-cheetahclaws --model qwen/Qwen3.5-Plus
-cheetahclaws --model qwen/Qwen3-MAX
-cheetahclaws --model qwen/Qwen3.5-Flash
-```
-
-### Zhipu GLM
-
-Get your API key at [open.bigmodel.cn](https://open.bigmodel.cn).
-
-```bash
-export ZHIPU_API_KEY=...
-
-cheetahclaws --model zhipu/glm-4-plus
-cheetahclaws --model zhipu/glm-4-flash   # free tier
-```
-
-### DeepSeek
-
-Get your API key at [platform.deepseek.com](https://platform.deepseek.com).
-
-```bash
-export DEEPSEEK_API_KEY=sk-...
-
-cheetahclaws --model deepseek/deepseek-chat
-cheetahclaws --model deepseek/deepseek-reasoner
-```
-
-### MiniMax
-
-Get your API key at [platform.minimaxi.chat](https://platform.minimaxi.chat).
-
-```bash
-export MINIMAX_API_KEY=...
-
-cheetahclaws --model minimax/MiniMax-Text-01
-cheetahclaws --model minimax/MiniMax-VL-01
-cheetahclaws --model minimax/abab6.5s-chat
-```
+> **프로바이더별 전체 가이드** — 각 프로바이더의 키 발급 페이지 + 예시 모델 명령, 그리고 Bedrock/Azure/Vertex 환경 변수 레시피: [../guides/usage.md](../guides/usage.md).
 
 ---
 
-## 사용법: 오픈소스 모델(로컬)
+## 사용법: 오픈소스 모델 (로컬)
 
-### Option A — Ollama (Recommended)
-
-Ollama runs models locally with zero configuration. No API key required.
-
-**Step 1: Install Ollama**
+### Ollama (권장)
 
 ```bash
-# macOS / Linux
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Or download from https://ollama.com/download
+curl -fsSL https://ollama.com/install.sh | sh   # install
+ollama pull qwen2.5-coder                        # pull a tool-calling model
+ollama serve                                     # http://localhost:11434 (auto-starts on macOS)
+cheetahclaws --model ollama/qwen2.5-coder        # run (use `ollama list` to see local models)
 ```
 
-**Step 2: Pull a model**
+### LM Studio
 
-```bash
-# Best for coding (recommended)
-ollama pull qwen2.5-coder          # 4.7 GB (7B)
-ollama pull qwen2.5-coder:32b      # 19 GB (32B)
-
-# General purpose
-ollama pull llama3.3               # 42 GB (70B)
-ollama pull llama3.2               # 2.0 GB (3B)
-
-# Reasoning
-ollama pull deepseek-r1            # 4.7 GB (7B)
-ollama pull deepseek-r1:32b        # 19 GB (32B)
-
-# Other
-ollama pull phi4                   # 9.1 GB (14B)
-ollama pull mistral                # 4.1 GB (7B)
-```
-
-**Step 3: Start Ollama server** (runs automatically on macOS; on Linux run manually)
-
-```bash
-ollama serve     # starts on http://localhost:11434
-```
-
-**Step 4: Run cheetahclaws**
-
-```bash
-cheetahclaws --model ollama/qwen2.5-coder
-cheetahclaws --model ollama/llama3.3
-cheetahclaws --model ollama/deepseek-r1
-```
-
-Or
-
-```bash
-python cheetahclaws.py --model ollama/qwen2.5-coder
-python cheetahclaws.py --model ollama/llama3.3
-python cheetahclaws.py --model ollama/deepseek-r1
-python cheetahclaws.py --model ollama/qwen3.5:35b
-```
-
-**List your locally available models:**
-
-```bash
-ollama list
-```
-
-Then use any model from the list:
-
-```bash
-cheetahclaws --model ollama/<model-name>
-```
-
----
-
-### Option B — LM Studio
-
-LM Studio provides a GUI to download and run models, with a built-in OpenAI-compatible server.
-
-**Step 1:** Download [LM Studio](https://lmstudio.ai) and install it.
-
-**Step 2:** Search and download a model inside LM Studio (GGUF format).
-
-**Step 3:** Go to **Local Server** tab → click **Start Server** (default port: 1234).
-
-**Step 4:**
+[LM Studio](https://lmstudio.ai)를 다운로드하고, GGUF 모델을 받은 다음, **로컬 서버**(포트 1234)를 시작하고 실행하세요:
 
 ```bash
 cheetahclaws --model lmstudio/<model-name>
-# e.g.:
-cheetahclaws --model lmstudio/phi-4-GGUF
-cheetahclaws --model lmstudio/qwen2.5-coder-7b
 ```
 
-The model name should match what LM Studio shows in the server status bar.
-
----
-
-### Option C — vLLM / Self-Hosted OpenAI-Compatible Server
-
-For self-hosted inference servers (vLLM, TGI, llama.cpp server, etc.) that expose an OpenAI-compatible API:
-
-Quick Start for option C:
-Step 1: Start vllm:
- ```
-CUDA_VISIBLE_DEVICES=7 python -m vllm.entrypoints.openai.api_server \
-      --model Qwen/Qwen2.5-Coder-7B-Instruct \
-      --host 0.0.0.0 \
-      --port 8000 \
-      --enable-auto-tool-choice \
-      --tool-call-parser hermes
-```
-
-
- Step 2: Start cheetahclaws：
-```
-  export CUSTOM_BASE_URL=http://localhost:8000/v1
-  export CUSTOM_API_KEY=none
-  cheetahclaws --model custom/Qwen/Qwen2.5-Coder-7B-Instruct
-```
-
+### vLLM / 자체 호스팅 OpenAI 호환 서버
 
 ```bash
-# Example: vLLM serving Qwen2.5-Coder-32B
 python -m vllm.entrypoints.openai.api_server \
-    --model Qwen/Qwen2.5-Coder-32B-Instruct \
-    --port 8000
+    --model Qwen/Qwen2.5-Coder-32B-Instruct --port 8000 \
+    --enable-auto-tool-choice --tool-call-parser hermes
 
-# Then run cheetahclaws pointing to your server:
-cheetahclaws
-```
-
-Inside the REPL:
-
-```
-/config custom_base_url=http://localhost:8000/v1
-/config custom_api_key=token-abc123    # skip if no auth
-/model custom/Qwen2.5-Coder-32B-Instruct
-```
-
-Or set via environment:
-
-```bash
 export CUSTOM_BASE_URL=http://localhost:8000/v1
-export CUSTOM_API_KEY=token-abc123
-
+export CUSTOM_API_KEY=token-abc123      # any non-empty string if the server has no auth
 cheetahclaws --model custom/Qwen2.5-Coder-32B-Instruct
 ```
 
-For a remote GPU server:
+`custom/` 뒤의 이름은 서버의 `--served-model-name`과 일치해야 합니다. 웹 UI의 경우 `--web --model custom/<name>`이 서버 시작 전에 모델을 영속화합니다. 원격 서버인가요? `CUSTOM_BASE_URL`을 해당 IP로 지정하세요.
+
+> **로컬 모델 전체 가이드** — Ollama 단계별 안내, LM Studio, vLLM + 웹 UI: [../guides/usage.md](../guides/usage.md#usage-open-source-models-local).
+
+### Atlas Cloud (호스팅형, OpenAI 호환)
+
+> 🎁 **[Atlas Cloud](https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=cheetahclaws)**는 의존성이 없는 `custom/` 어댑터를 통해 하나의 OpenAI 호환 엔드포인트 뒤에서 DeepSeek, Qwen, GLM, Kimi, MiniMax 등을 제공합니다:
 
 ```bash
-/config custom_base_url=http://192.168.1.100:8000/v1
-/model custom/your-model-name
+export CUSTOM_BASE_URL=https://api.atlascloud.ai/v1
+export CUSTOM_API_KEY=your_atlascloud_api_key
+cheetahclaws --model custom/deepseek-ai/deepseek-v4-pro
 ```
+
+> 모든 Atlas 채팅 모델 ID가 동일한 방식으로 작동합니다 — **전체 59개 모델 목록:** [../guides/usage.md](../guides/usage.md#option-d--atlas-cloud-hosted-openai-compatible).
 
 ---
 
 ## 모델 이름 형식
 
-Three equivalent formats are supported:
+세 가지 동등한 형식이 허용됩니다:
 
 ```bash
-# 1. Auto-detect by prefix (works for well-known models)
-cheetahclaws --model gpt-4o
-cheetahclaws --model gemini-2.0-flash
-cheetahclaws --model deepseek-chat
-
-# 2. Explicit provider prefix with slash
-cheetahclaws --model ollama/qwen2.5-coder
-cheetahclaws --model kimi/moonshot-v1-128k
-
-# 3. Explicit provider prefix with colon (also works)
-cheetahclaws --model kimi:moonshot-v1-32k
-cheetahclaws --model qwen:qwen-max
+cheetahclaws --model gpt-4o                  # 1. auto-detect by prefix
+cheetahclaws --model ollama/qwen2.5-coder    # 2. provider/model
+cheetahclaws --model kimi:moonshot-v1-32k    # 3. provider:model
 ```
 
-**Auto-detection rules:**
-
-| Model prefix | Detected provider |
-|---|---|
-| `claude-` | anthropic |
-| `gpt-`, `o1`, `o3` | openai |
-| `gemini-` | gemini |
-| `moonshot-`, `kimi-` | kimi |
-| `qwen`, `qwq-` | qwen |
-| `glm-` | zhipu |
-| `deepseek-` | deepseek |
-| `MiniMax-`, `minimax-`, `abab` | minimax |
-| `llama`, `mistral`, `phi`, `gemma`, `mixtral`, `codellama` | ollama |
+**접두사에 의한 자동 감지:** `claude-`→anthropic · `gpt-`/`o1`/`o3`→openai · `gemini-`→gemini · `moonshot-`/`kimi-`→kimi · `qwen`/`qwq-`→qwen · `glm-`→zhipu · `deepseek-`→deepseek · `MiniMax-`/`abab`→minimax · `llama`/`mistral`/`phi`/`gemma`/`mixtral`/`codellama`→ollama.
 
 ---
 
-## CLI 참조
+## 트레이딩 에이전트
+
+내장 AI 트레이딩 분석 + 백테스팅 모듈입니다(`pip install "cheetahclaws[trading]"`).
+
+```bash
+/trading analyze NVDA            # 5-phase pipeline: data → Bull/Bear debate → Judge → Risk panel → PM decision
+/trading backtest AAPL dual_ma   # backtest a strategy (or let AI pick); Sharpe/Sortino/Calmar/drawdown/win-rate
+```
+
+4가지 전략(`dual_ma`, `rsi_mean_reversion`, `bollinger_breakout`, `macd_crossover`), 과거 상황에 대한 BM25 메모리, API 키가 필요 없는 데이터 폴백을 갖춘 미국/홍콩/A주 + 암호화폐 시장. `/ssj` → **Trading**을 통한 안내형 서브 메뉴.
+
+> **전체 가이드:** [../guides/trading.md](../guides/trading.md)
+
+---
+
+## 웹 UI
+
+프로덕션 준비가 된 브라우저 인터페이스 — 실제 사용자 계정(bcrypt + JWT), SQLite 기반 기록, 운영 엔드포인트 — Python 표준 라이브러리 + 10개의 바닐라 JS 모듈로 제공됩니다(Node.js / React / 빌드 단계 없음).
+
+```bash
+pip install 'cheetahclaws[web]'
+cheetahclaws --web                  # auto-picks a free port (tries 8080)
+cheetahclaws --web --port 9000 --host 0.0.0.0   # bind explicitly / open to LAN
+cheetahclaws --web --no-auth        # skip login (localhost dev only)
+```
+
+`http://localhost:<port>/chat`을 여세요 — 첫 계정이 관리자가 됩니다. 스트리밍 채팅(WS) + SSE 슬래시 명령, 폴더/검색/Markdown 내보내기가 있는 영속 세션, 도구 카드, 인라인 권한 승인, 설정 패널, 라이트/다크/시스템 테마, 그리고 `/health` + `/metrics` 엔드포인트를 포함합니다. 완전한 xterm.js PTY 터미널이 `/`에 있습니다(100% CLI 동등성).
+
+> **전체 가이드:** [../guides/web-ui.md](../guides/web-ui.md) · **Docker / 홈 서버:** [../guides/docker.md](../guides/docker.md) · **네이티브 데스크톱 앱:** [../../desktop/README.md](../../desktop/README.md)
+
+---
+
+## 문서
+
+이 README를 집중력 있게 유지하기 위해 상세 가이드는 [`docs/guides/`](../guides/)에 있습니다:
+
+| 가이드 | 내용 |
+|---|---|
+| [**기능 (전체)**](../guides/features.md) | 완전한 기능 표 — 모든 항목을 상세히(컨텍스트 압축, 자동 팬아웃, 테마, Trading/Research/Agents 설명) |
+| [**사용법 (전체 프로바이더)**](../guides/usage.md) | 프로바이더별 설정 + 예시 명령: Anthropic/OpenAI/Gemini/Kimi/Qwen/Zhipu/DeepSeek/MiniMax/litellm, 그리고 로컬 Ollama/LM Studio/vLLM |
+| [**웹 UI**](../guides/web-ui.md) | 채팅 UI, PTY 터미널, API 엔드포인트, 설정, 인증, SSE 스트리밍 |
+| [**데스크톱 앱**](../../desktop/README.md) | 로컬 웹 UI를 감싸는 네이티브 창 셸(Electron); 자체 완결형 `.dmg`/`.exe`/`.AppImage` 빌드 |
+| [**Docker / 홈 서버**](../guides/docker.md) | Dockerfile + compose: 하나의 컨테이너에 웹 UI + 브리지, 호스트 Ollama, 워크스페이스 마운트 |
+| [**레퍼런스**](../guides/reference.md) | CLI, 50개 이상의 명령, 33개 내장 도구, 세션 검색, 오류 분류, 도구 캐시 |
+| [**확장**](../guides/extensions.md) | 메모리, 스킬, 서브 에이전트, MCP 서버, 플러그인, Monitor, 자율 에이전트 |
+| [**브리지**](../guides/bridges.md) | Telegram, WeChat, Slack, QQ 설정 + 휴대폰에서의 원격 제어 |
+| [**보안 & 환경 변수**](../guides/security.md) | 위협 모델, `CHEETAHCLAWS_*` 변수, 봇 토큰 처리, Bash 거부 목록, 파일 시스템 샌드박스, CSRF |
+| [**음성 & 비디오**](../guides/voice-and-video.md) | 오프라인 Whisper 음성 입력, 비디오 팩토리, TTS 팩토리 |
+| [**트레이딩**](../guides/trading.md) | 멀티 에이전트 분석, 백테스팅, BM25 메모리, 데이터 폴백, SSJ 통합 |
+| [**고급**](../guides/advanced.md) | Brainstorm, SSJ, Tmux, 능동적 모니터링, 체크포인트, 플랜 모드, 세션, 클라우드 동기화 |
+| [**비교**](../guides/comparison.md) | Claude Code 및 OpenClaw 대비 전체 포지셔닝 — 한눈에 보는 표, 양측의 강점, 핵심 설계 차이 |
+| [**레시피**](../guides/recipes.md) | 12가지 단계별 예제: 코드 리뷰, 원격 제어, 리서치, 버그 수정, 브라우징, 이메일, PDF/Excel |
+| [**자주 묻는 질문**](../guides/faq.md) | 전체 FAQ (MCP, 모델/프로바이더, CLI/스크립팅, 음성) |
+| [**플러그인 작성**](../guides/plugin-authoring.md) · [예제](../../examples/example-plugin/) | 플러그인 만들기: 도구, 명령, 스킬, MCP; 스타터 템플릿 |
+| [**리서치 랩**](../guides/research-lab.md) | `/lab start <topic>` — 샌드박스 실험을 통한 자율 멀티 에이전트 논문 작성 |
+| [**Agent OS**](../agent-os.md) · [RFC 인덱스](../RFC/) | `kernel/` 계층 + 모든 설계 노트(RFC 0001-0032) |
+| [**기여하기**](../../CONTRIBUTING.md) | 프로젝트 구조, 아키텍처 가이드, PR 체크리스트 |
+
+---
+
+## 빠른 레퍼런스
 
 ```
 cheetahclaws [OPTIONS] [PROMPT]
-# or: python cheetahclaws.py [OPTIONS] [PROMPT]
 
-Options:
   -p, --print          Non-interactive: run prompt and exit
   -m, --model MODEL    Override model (e.g. gpt-4o, ollama/llama3.3)
   --accept-all         Auto-approve all operations (no permission prompts)
   --verbose            Show thinking blocks and per-turn token counts
+  --show-tools         Show each tool call instead of a per-turn summary
+                       (alias: --no-quiet; compact summary is the default)
   --thinking           Enable Extended Thinking (Claude only)
-  --version            Print version and exit
-  -h, --help           Show help
+  --web                Start web server (Chat UI + PTY terminal in browser)
+  --port / --host      Web server port / host (default 8080 / 127.0.0.1)
+  --no-auth            Disable web password (local use only)
+  --version / -h       Print version / show help
 ```
-
-**Examples:**
 
 ```bash
-# Interactive REPL with default model
-cheetahclaws
-
-# Switch model at startup
-cheetahclaws --model gpt-4o
-cheetahclaws -m ollama/deepseek-r1:32b
-
-# Non-interactive / scripting
-cheetahclaws --print "Write a Python fibonacci function"
-cheetahclaws -p "Explain the Rust borrow checker in 3 sentences" -m gemini/gemini-2.0-flash
-
-# CI / automation (no permission prompts)
-cheetahclaws --accept-all --print "Initialize a Python project with pyproject.toml"
-
-# Debug mode (see tokens + thinking)
-cheetahclaws --thinking --verbose
+cheetahclaws                                          # interactive REPL, default model
+cheetahclaws -m ollama/deepseek-r1:32b                # pick a model
+cheetahclaws -p "Write a Python fibonacci function"   # non-interactive
+cheetahclaws --accept-all -p "Init a pyproject.toml"  # CI / automation
+cheetahclaws --web --port 8008 --no-auth              # browser chat + terminal
 ```
+
+모든 50개 이상의 슬래시 명령, 도구, 설정 옵션은 [레퍼런스 가이드](../guides/reference.md)를 참고하세요.
 
 ---
 
-## 슬래시 명령어 (REPL)
+## 기여하기
 
-Type `/` and press **Tab** to see all commands with descriptions. Continue typing to filter, then Tab again to auto-complete. After a command name, press **Tab** again to see its subcommands (e.g. `/plugin ` → `install`, `uninstall`, `enable`, …).
+기여를 환영합니다! 아키텍처, 컨벤션, PR 체크리스트는 [기여 가이드](../../CONTRIBUTING.md)를 참고하세요.
 
-| 명령어 | 설명 |
-|---|---|
-| `/help` | Show all commands |
-| `/clear` | Clear conversation history |
-| `/model` | Show current model + list all available models |
-| `/model <name>` | Switch model (takes effect immediately) |
-| `/config` | Show all current config values |
-| `/config key=value` | Set a config value (persisted to disk) |
-| `/save` | Save session (auto-named by timestamp) |
-| `/save <filename>` | Save session to named file |
-| `/load` | Interactive list grouped by date; enter number, `1,2,3` to merge, or `H` for full history |
-| `/load <filename>` | Load a saved session by filename |
-| `/resume` | Restore the last auto-saved session (`mr_sessions/session_latest.json`) |
-| `/resume <filename>` | Load a specific file from `mr_sessions/` (or absolute path) |
-| `/history` | Print full conversation history |
-| `/context` | Show message count and token estimate |
-| `/cost` | Show token usage and estimated USD cost |
-| `/verbose` | Toggle verbose mode (tokens + thinking) |
-| `/thinking` | Toggle Extended Thinking (Claude only) |
-| `/permissions` | Show current permission mode |
-| `/permissions <mode>` | Set permission mode: `auto` / `accept-edits` / `accept-all` / `manual` / `plan` |
-| `/cwd` | Show current working directory |
-| `/cwd <path>` | Change working directory |
-| `/memory` | List all persistent memories |
-| `/memory <query>` | Search memories by keyword (ranked by confidence × recency) |
-| `/memory consolidate` | AI-extract up to 3 long-term insights from the current session |
-| `/skills` | List available skills |
-| `/agents` | Show sub-agent task status |
-| `/mcp` | List configured MCP servers and their tools |
-| `/mcp reload` | Reconnect all MCP servers and refresh tools |
-| `/mcp reload <name>` | Reconnect a single MCP server |
-| `/mcp add <name> <cmd> [args]` | Add a stdio MCP server to user config |
-| `/mcp remove <name>` | Remove a server from user config |
-| `/voice` | Record voice, transcribe with Whisper, auto-submit as prompt |
-| `/voice status` | Show recording and STT backend availability |
-| `/voice lang <code>` | Set STT language (e.g. `zh`, `en`, `ja`; `auto` to detect) |
-| `/voice device` | List available input microphones and select one interactively |
-| `/image [prompt]` | Capture clipboard image and send to vision model with optional prompt |
-| `/img [prompt]` | Alias for `/image` |
-| `/proactive` | Show current proactive polling status (ON/OFF and interval) |
-| `/proactive <duration>` | Enable background sentinel polling (e.g. `5m`, `30s`, `1h`) |
-| `/proactive off` | Disable background polling |
-| `/cloudsave setup <token>` | Configure GitHub Personal Access Token for Gist sync |
-| `/cloudsave` | Upload current session to a private GitHub Gist |
-| `/cloudsave push [desc]` | Upload with an optional description |
-| `/cloudsave auto on\|off` | Toggle auto-upload on `/exit` |
-| `/cloudsave list` | List your cheetahclaws Gists |
-| `/cloudsave load <gist_id>` | Download and restore a session from Gist |
-| `/brainstorm` | Run a multi-persona AI brainstorm; prompts for agent count (2–100, default 5) |
-| `/brainstorm <topic>` | Focus the brainstorm on a specific topic; prompts for agent count |
-| `/ssj` | Open SSJ Developer Mode — interactive power menu with 10 workflow shortcuts |
-| `/worker` | Auto-implement all pending tasks from `brainstorm_outputs/todo_list.txt` |
-| `/worker <n,m,…>` | Implement specific pending tasks by number (e.g. `/worker 1,4,6`) |
-| `/worker --path <file>` | Use a custom todo file path instead of the default |
-| `/worker --workers <n>` | Limit the batch to N tasks per run (e.g. `/worker --workers 3`) |
-| `/telegram <token> <chat_id>` | Configure and start the Telegram bot bridge |
-| `/telegram` | Start the bridge using previously saved token + chat_id |
-| `/telegram stop` | Stop the Telegram bridge |
-| `/telegram status` | Show whether the bridge is running and the configured chat_id |
-| `/checkpoint` | List all checkpoints (snapshots) for the current session |
-| `/checkpoint <id>` | Rewind to checkpoint — restore files and conversation to that snapshot |
-| `/checkpoint clear` | Delete all checkpoints for the current session |
-| `/rewind` | Alias for `/checkpoint` |
-| `/plan <description>` | Enter plan mode: read-only analysis, writes only to the plan file |
-| `/plan` | Show current plan file contents |
-| `/plan done` | Exit plan mode and restore original permissions |
-| `/plan status` | Show whether plan mode is active |
-| `/compact` | Manually compact the conversation (same as auto-compact but user-triggered) |
-| `/compact <focus>` | Compact with focus instructions (e.g. `/compact keep the auth refactor context`) |
-| `/init` | Create a `CLAUDE.md` template in the current working directory |
-| `/export` | Export the conversation as a Markdown file to `.nano_claude/exports/` |
-| `/export <filename>` | Export as Markdown or JSON (detected by `.json` extension) |
-| `/copy` | Copy the last assistant response to the clipboard |
-| `/status` | Show version, model, provider, permissions, session ID, token usage, and context % |
-| `/doctor` | Diagnose installation health: Python, git, API key, optional deps, CLAUDE.md, checkpoint disk usage |
-| `/exit` / `/quit` | Exit |
-
-**Switching models inside a session:**
-
+```bash
+git clone https://github.com/SafeRL-Lab/cheetahclaws.git && cd cheetahclaws
+pip install -r requirements.txt && pip install pytest
+python -m pytest tests/ -x -q       # 341+ tests should pass
+python cheetahclaws.py              # run the REPL
 ```
-[myproject] ❯ /model
-  Current model: claude-opus-4-6  (provider: anthropic)
 
-  Available models by provider:
-    anthropic     claude-opus-4-6, claude-sonnet-4-6, ...
-    openai        gpt-4o, gpt-4o-mini, o3-mini, ...
-    ollama        llama3.3, llama3.2, phi4, mistral, ...
-    ...
-
-[myproject] ❯ /model gpt-4o
-  Model set to gpt-4o  (provider: openai)
-
-[myproject] ❯ /model ollama/qwen2.5-coder
-  Model set to ollama/qwen2.5-coder  (provider: ollama)
-```
+플러그인을 만드시나요? [플러그인 작성 가이드](../guides/plugin-authoring.md)와 [예제 템플릿](../../examples/example-plugin/)을 참고하세요.
 
 ---
 
-## API 키 설정
+## 자주 묻는 질문
 
-### Method 1: Environment Variables (recommended)
+몇 가지 자주 묻는 질문입니다 — **전체 FAQ**는 [../guides/faq.md](../guides/faq.md)에 있습니다.
 
-```bash
-# Add to ~/.bashrc or ~/.zshrc
-export ANTHROPIC_API_KEY=sk-ant-...
-export OPENAI_API_KEY=sk-...
-export GEMINI_API_KEY=AIza...
-export MOONSHOT_API_KEY=sk-...       # Kimi
-export DASHSCOPE_API_KEY=sk-...      # Qwen
-export ZHIPU_API_KEY=...             # Zhipu GLM
-export DEEPSEEK_API_KEY=sk-...       # DeepSeek
-export MINIMAX_API_KEY=...           # MiniMax
+**Q: MCP 서버는 어떻게 추가하나요?**
+```
+/mcp add git uvx mcp-server-git          # or create .mcp.json in your project, then /mcp reload
 ```
 
-### Method 2: Set Inside the REPL (persisted)
+**Q: 로컬 Ollama 모델에서 도구 호출이 작동하지 않습니다(실제로 실행하지 않고 무엇을 할지 계속 설명만 합니다).**
+CheetahClaws는 이제 로컬 모델이 Ollama의 구조화된 필드 대신 **텍스트**(`<tool_call>…</tool_call>`, `[TOOL_CALLS]…`)로 내보내는 도구 호출을 자동 복구하므로, 대부분의 함수 호출 모델이 즉시 도구를 실행합니다. 최고의 안정성을 위해서는 도구 호출 모델 — `qwen2.5-coder`, `llama3.3`, `mistral`, `phi4` — 을 사용하세요. 작은 모델은 또한 클라우드 모델보다 에이전트형 도구 사용에 약하므로, 더 명확하고 구체적인 프롬프트가 필요할 수 있습니다.
 
-```
-/config anthropic_api_key=sk-ant-...
-/config openai_api_key=sk-...
-/config gemini_api_key=AIza...
-/config kimi_api_key=sk-...
-/config qwen_api_key=sk-...
-/config zhipu_api_key=...
-/config deepseek_api_key=sk-...
-/config minimax_api_key=...
-```
+**Q: macOS에 설치한 후 `cheetahclaws: command not found`가 뜨고 `~/.zshrc`가 생성되지 않았습니다.**
+먼저 셸을 다시 로드하세요: `source ~/.zshrc`(zsh) 또는 `source ~/.bash_profile`(bash). 설치 프로그램은 `~/.zshrc`가 없으면 생성하고, 바이너리를 `~/.local/bin`에 심볼릭 링크하며, PATH에 추가합니다. 이전 버전을 설치했다면, 설치 프로그램을 다시 실행하거나 이 줄을 직접 추가하세요: `echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc && source ~/.zshrc`.
 
-Keys are saved to `~/.cheetahclaws/config.json` and loaded automatically on next launch.
+그 외 — 원격 vLLM, API 비용(`/cost`), 세션당 여러 키, 프로젝트 전반의 기본 모델, 입력 파이핑, 음성 설정, 깨진 텍스트 수정 — 은 모두 [../guides/faq.md](../guides/faq.md)에서 답변되어 있습니다.
 
-### Method 3: Edit the Config File Directly
+---
 
-```json
-// ~/.cheetahclaws/config.json
-{
-  "model": "qwen/qwen-max",
-  "max_tokens": 8192,
-  "permission_mode": "auto",
-  "verbose": false,
-  "thinking": false,
-  "qwen_api_key": "sk-...",
-  "kimi_api_key": "sk-...",
-  "deepseek_api_key": "sk-...",
-  "minimax_api_key": "..."
+## 인용
+저장소가 유용하다고 생각되면 이 연구를 인용해 주세요
+``` Bash
+@article{gu2026model,
+  title={From Model Scaling to System Scaling: Scaling the Harness in Agentic AI},
+  author={Gu, Shangding},
+  journal={arXiv preprint arXiv:2605.26112},
+  year={2026}
+}
+
+@article{cheetahclaws2026,
+  title={CheetahClaws: Agent Harness Infrastructure for Long-Horizon, Multi-Model, and Tool-Using AI Systems},
+  author={CheetahClaws Team},
+  journal={github},
+  year={2026}
 }
 ```
 
----
-
-## 권한 시스템
-
-| Mode | Behavior |
-|---|---|
-| `auto` (default) | Read-only operations always allowed. Prompts before Bash commands and file writes. |
-| `accept-all` | Never prompts. All operations proceed automatically. |
-| `manual` | Prompts before every single operation, including reads. |
-| `plan` | Read-only analysis mode. Only the plan file (`.nano_claude/plans/`) is writable. Entered via `/plan <desc>` or the `EnterPlanMode` tool. |
-
-**When prompted:**
-
-```
-  Allow: Run: git commit -am "fix bug"  [y/N/a(ccept-all)]
-```
-
-- `y` — approve this one action
-- `n` or Enter — deny
-- `a` — approve and switch to `accept-all` for the rest of the session
-
-**Commands always auto-approved in `auto` mode:**
-`ls`, `cat`, `head`, `tail`, `wc`, `pwd`, `echo`, `git status`, `git log`, `git diff`, `git show`, `find`, `grep`, `rg`, `python`, `node`, `pip show`, `npm list`, and other read-only shell commands.
 
 ---
 
-## 내장 도구
 
-### Core Tools
-
-| 도구 | 설명 | 핵심 매개변수 |
-|---|---|---|
-| `Read` | Read file with line numbers | `file_path`, `limit`, `offset` |
-| `Write` | Create or overwrite file (shows diff) | `file_path`, `content` |
-| `Edit` | Exact string replacement (shows diff) | `file_path`, `old_string`, `new_string`, `replace_all` |
-| `Bash` | Execute shell command | `command`, `timeout` (default 30s) |
-| `Glob` | Find files by glob pattern | `pattern` (e.g. `**/*.py`), `path` |
-| `Grep` | Regex search in files (uses ripgrep if available) | `pattern`, `path`, `glob`, `output_mode` |
-| `WebFetch` | Fetch and extract text from URL | `url`, `prompt` |
-| `WebSearch` | Search the web via DuckDuckGo | `query` |
-
-### Notebook & Diagnostics Tools
-
-| 도구 | 설명 | 핵심 매개변수 |
-|---|---|---|
-| `NotebookEdit` | Edit a Jupyter notebook (`.ipynb`) cell | `notebook_path`, `new_source`, `cell_id`, `cell_type`, `edit_mode` (`replace`/`insert`/`delete`) |
-| `GetDiagnostics` | Get LSP-style diagnostics for a source file (pyright/mypy/flake8 for Python; tsc/eslint for JS/TS; shellcheck for shell) | `file_path`, `language` (optional override) |
-
-### 메모리 Tools
-
-| 도구 | 설명 | 핵심 매개변수 |
-|---|---|---|
-| `MemorySave` | Save or update a persistent memory | `name`, `type`, `description`, `content`, `scope` |
-| `MemoryDelete` | Delete a memory by name | `name`, `scope` |
-| `MemorySearch` | Search memories by keyword (or AI ranking) | `query`, `scope`, `use_ai`, `max_results` |
-| `MemoryList` | List all memories with age and metadata | `scope` |
-
-### Sub-Agent Tools
-
-| 도구 | 설명 | 핵심 매개변수 |
-|---|---|---|
-| `Agent` | Spawn a sub-agent for a task | `prompt`, `subagent_type`, `isolation`, `name`, `model`, `wait` |
-| `SendMessage` | Send a message to a named background agent | `name`, `message` |
-| `CheckAgentResult` | Check status/result of a background agent | `task_id` |
-| `ListAgentTasks` | List all active and finished agent tasks | — |
-| `ListAgentTypes` | List available agent type definitions | — |
-
-### Background & Autonomy Tools
-
-| 도구 | 설명 | 핵심 매개변수 |
-|---|---|---|
-| `SleepTimer` | Schedule a silent background timer; injects an automated wake-up prompt when it fires so the agent can resume monitoring or deferred tasks | `seconds` |
-
-### Skill Tools
-
-| 도구 | 설명 | 핵심 매개변수 |
-|---|---|---|
-| `Skill` | Invoke a skill by name from within the conversation | `name`, `args` |
-| `SkillList` | List all available skills with triggers and metadata | — |
-
-### MCP Tools
-
-MCP tools are discovered automatically from configured servers and registered under the name `mcp__<server>__<tool>`. Claude can use them exactly like built-in tools.
-
-| Example tool name | Where it comes from |
-|---|---|
-| `mcp__git__git_status` | `git` server, `git_status` tool |
-| `mcp__filesystem__read_file` | `filesystem` server, `read_file` tool |
-| `mcp__myserver__my_action` | custom server you configured |
-
-> **Adding custom tools:** See [Architecture Guide](docs/architecture.md#tool-registry) for how to register your own tools.
-
----
-
-## 메모리
-
-The model can remember things across conversations using the built-in memory system.
-
-### 저장
-
-Memories are stored as individual markdown files in two scopes:
-
-| Scope | Path | Visibility |
-|---|---|---|
-| **User** (default) | `~/.cheetahclaws/memory/` | Shared across all projects |
-| **Project** | `.cheetahclaws/memory/` in cwd | Local to the current repo |
-
-A `MEMORY.md` index (≤ 200 lines / 25 KB) is auto-rebuilt on every save or delete and injected into the system prompt so the model always has an overview of what's been remembered.
-
-### 메모리 types
-
-| Type | Use for |
-|---|---|
-| `user` | Your role, preferences, background |
-| `feedback` | How you want the model to behave (corrections AND confirmations) |
-| `project` | Ongoing work, deadlines, decisions not in git history |
-| `reference` | Links to external systems (Linear, Grafana, Slack, etc.) |
-
-### 메모리 file format
-
-Each memory is a markdown file with YAML frontmatter:
-
-```markdown
----
-name: coding_style
-description: Python formatting preferences
-type: feedback
-created: 2026-04-02
-confidence: 0.95
-source: user
-last_used_at: 2026-04-05
-conflict_group: coding_style
----
-Prefer 4-space indentation and full type hints in all Python code.
-**Why:** user explicitly stated this preference.
-**How to apply:** apply to every Python file written or edited.
-```
-
-**Metadata fields** (new — auto-managed):
-
-| Field | Default | Description |
-|---|---|---|
-| `confidence` | `1.0` | Reliability score 0–1. Explicit user statements = 1.0; inferred preferences ≈ 0.8; auto-consolidated ≈ 0.8 |
-| `source` | `user` | Origin: `user` / `model` / `tool` / `consolidator` |
-| `last_used_at` | — | Updated automatically each time this memory is returned by MemorySearch |
-| `conflict_group` | — | Groups related memories (e.g. `writing_style`) for conflict tracking |
-
-### 충돌 감지
-
-When `MemorySave` is called with a name that already exists but different content, the system reports the conflict before overwriting:
-
-```
-Memory saved: 'writing_style' [feedback/user]
-⚠ Replaced conflicting memory (was user-sourced, 100% confidence, written 2026-04-01).
-  Old content: Prefer formal, academic style...
-```
-
-### 순위 기반 검색
-
-`MemorySearch` ranks results by **confidence × recency** (30-day exponential decay) rather than plain keyword order. Memories that haven't been used recently fade in priority. Each search hit also updates `last_used_at` so frequently-accessed memories stay prominent.
-
-```
-You: /memory python
-  [feedback/user] coding_style [conf:95% src:user]
-    Python formatting preferences
-    Prefer 4-space indentation and full type hints...
-```
-
-### `/memory consolidate` — auto-extract long-term insights
-
-After a meaningful session, run:
-
-```
-[myproject] ❯ /memory consolidate
-  Analyzing session for long-term memories…
-  ✓ Consolidated 2 memory/memories: user_prefers_direct_answers, avoid_trailing_summaries
-```
-
-The command sends a condensed session transcript to the model and asks it to identify up to **3** insights worth keeping long-term (user preferences, feedback corrections, project decisions). Extracted memories are saved with `confidence: 0.80` and `source: consolidator` — they **never overwrite** an existing memory that already has higher confidence.
-
-Good times to run `/memory consolidate`:
-- After correcting the model's behavior several times in a row
-- After a session where you shared project background or decisions
-- After completing a task with clear planning choices
-
-### 예시 interaction
-
-```
-You: Remember that I prefer 4-space indentation and type hints.
-AI: [calls MemorySave] Memory saved: 'coding_style' [feedback/user]
-
-You: /memory
-  1 memory/memories:
-  [feedback  |user   ] coding_style.md
-    Python formatting preferences
-
-You: /memory python
-  Found 1 relevant memory for 'python':
-  [feedback/user] coding_style
-    Prefer 4-space indentation and full type hints in all Python code.
-
-You: /memory consolidate
-  ✓ Consolidated 1 memory: user_prefers_verbose_commit_messages
-```
-
-**Staleness warnings:** Memories older than 1 day show a `⚠ stale` caveat — claims about file:line citations or code state may be outdated; verify before acting.
-
-**AI-ranked search:** `MemorySearch(query="...", use_ai=true)` uses the model to rank candidates by relevance before applying the confidence × recency re-ranking.
-
----
-
-## 스킬
-
-Skills are reusable prompt templates that give the model specialized capabilities. Two built-in skills ship out of the box — no setup required.
-
-**Built-in skills:**
-
-| Trigger | Description |
-|---|---|
-| `/commit` | Review staged changes and create a well-structured git commit |
-| `/review [PR]` | Review code or PR diff with structured feedback |
-
-**Quick start — custom skill:**
-
-```bash
-mkdir -p ~/.cheetahclaws/skills
-```
-
-Create `~/.cheetahclaws/skills/deploy.md`:
-
-```markdown
----
-name: deploy
-description: Deploy to an environment
-triggers: [/deploy]
-allowed-tools: [Bash, Read]
-when_to_use: Use when the user wants to deploy a version to an environment.
-argument-hint: [env] [version]
-arguments: [env, version]
-context: inline
----
-
-Deploy $VERSION to the $ENV environment.
-Full args: $ARGUMENTS
-```
-
-Now use it:
-
-```
-You: /deploy staging 2.1.0
-AI: [deploys version 2.1.0 to staging]
-```
-
-**Argument substitution:**
-- `$ARGUMENTS` — the full raw argument string
-- `$ARG_NAME` — positional substitution by named argument (first word → first name)
-- Missing args become empty strings
-
-**Execution modes:**
-- `context: inline` (default) — runs inside current conversation history
-- `context: fork` — runs as an isolated sub-agent with fresh history; supports `model` override
-
-**Priority** (highest wins): project-level > user-level > built-in
-
-**List skills:** `/skills` — shows triggers, argument hint, source, and `when_to_use`
-
-**Skill search paths:**
-
-```
-./.cheetahclaws/skills/     # project-level (overrides user-level)
-~/.cheetahclaws/skills/     # user-level
-```
-
----
-
-## 서브에이전트
-
-The model can spawn independent sub-agents to handle tasks in parallel.
-
-**Specialized agent types** — built-in:
-
-| Type | Optimized for |
-|---|---|
-| `general-purpose` | Research, exploration, multi-step tasks |
-| `coder` | Writing, reading, and modifying code |
-| `reviewer` | Security, correctness, and code quality analysis |
-| `researcher` | Web search and documentation lookup |
-| `tester` | Writing and running tests |
-
-**Basic usage:**
-```
-You: Search this codebase for all TODO comments and summarize them.
-AI: [calls Agent(prompt="...", subagent_type="researcher")]
-    Sub-agent reads files, greps for TODOs...
-    Result: Found 12 TODOs across 5 files...
-```
-
-**Background mode** — spawn without waiting, collect result later:
-```
-AI: [calls Agent(prompt="run all tests", name="test-runner", wait=false)]
-AI: [continues other work...]
-AI: [calls CheckAgentResult / SendMessage to follow up]
-```
-
-**Git worktree isolation** — agents work on an isolated branch with no conflicts:
-```
-Agent(prompt="refactor auth module", isolation="worktree")
-```
-The worktree is auto-cleaned up if no changes were made; otherwise the branch name is reported.
-
-**Custom agent types** — create `~/.cheetahclaws/agents/myagent.md`:
-```markdown
----
-name: myagent
-description: Specialized for X
-model: claude-haiku-4-5-20251001
-tools: [Read, Grep, Bash]
----
-Extra system prompt for this agent type.
-```
-
-**List running agents:** `/agents`
-
-Sub-agents have independent conversation history, share the file system, and are limited to 3 levels of nesting.
-
----
-
-## MCP (Model Context Protocol)
-
-MCP lets you connect any external tool server — local subprocess or remote HTTP — and Claude can use its tools automatically. This is the same protocol Claude Code uses to extend its capabilities.
-
-### Supported transports
-
-| Transport | Config `type` | Description |
-|---|---|---|
-| **stdio** | `"stdio"` | Spawn a local subprocess (most common) |
-| **SSE** | `"sse"` | HTTP Server-Sent Events stream |
-| **HTTP** | `"http"` | Streamable HTTP POST (newer servers) |
-
-### 구성
-
-Place a `.mcp.json` file in your project directory **or** edit `~/.cheetahclaws/mcp.json` for user-wide servers.
-
-```json
-{
-  "mcpServers": {
-    "git": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": ["mcp-server-git"]
-    },
-    "filesystem": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": ["mcp-server-filesystem", "/tmp"]
-    },
-    "my-remote": {
-      "type": "sse",
-      "url": "http://localhost:8080/sse",
-      "headers": {"Authorization": "Bearer my-token"}
-    }
-  }
-}
-```
-
-Config priority: `.mcp.json` (project) overrides `~/.cheetahclaws/mcp.json` (user) by server name.
-
-### 빠른 시작
-
-```bash
-# Install a popular MCP server
-pip install uv        # uv includes uvx
-uvx mcp-server-git --help   # verify it works
-
-# Add to user config via REPL
-/mcp add git uvx mcp-server-git
-
-# Or create .mcp.json in your project dir, then:
-/mcp reload
-```
-
-### REPL commands
-
-```
-/mcp                          # list servers + their tools + connection status
-/mcp reload                   # reconnect all servers, refresh tool list
-/mcp reload git               # reconnect a single server
-/mcp add myserver uvx mcp-server-x   # add stdio server
-/mcp remove myserver          # remove from user config
-```
-
-### How Claude uses MCP tools
-
-Once connected, Claude can call MCP tools directly:
-
-```
-You: What files changed in the last git commit?
-AI: [calls mcp__git__git_diff_staged()]
-    → shows diff output from the git MCP server
-```
-
-Tool names follow the pattern `mcp__<server_name>__<tool_name>`. All characters
-that are not alphanumeric or `_` are automatically replaced with `_`.
-
-### Popular MCP servers
-
-| Server | Install | Provides |
-|---|---|---|
-| `mcp-server-git` | `uvx mcp-server-git` | git operations (status, diff, log, commit) |
-| `mcp-server-filesystem` | `uvx mcp-server-filesystem <path>` | file read/write/list |
-| `mcp-server-fetch` | `uvx mcp-server-fetch` | HTTP fetch tool |
-| `mcp-server-postgres` | `uvx mcp-server-postgres <conn-str>` | PostgreSQL queries |
-| `mcp-server-sqlite` | `uvx mcp-server-sqlite --db-path x.db` | SQLite queries |
-| `mcp-server-brave-search` | `uvx mcp-server-brave-search` | Brave web search |
-
-> Browse the full registry at [modelcontextprotocol.io/servers](https://modelcontextprotocol.io/servers)
-
----
-
-## 플러그인 시스템
-
-The `plugin/` package lets you extend cheetahclaws with additional tools, skills, and MCP servers from git repositories or local directories.
-
-### Install a plugin
-
-```bash
-/plugin install my-plugin@https://github.com/user/my-plugin
-/plugin install local-plugin@/path/to/local/plugin
-```
-
-### Manage plugins
-
-```bash
-/plugin                   # list installed plugins
-/plugin enable my-plugin  # enable a disabled plugin
-/plugin disable my-plugin # disable without uninstalling
-/plugin disable-all       # disable all plugins
-/plugin update my-plugin  # pull latest from git
-/plugin uninstall my-plugin
-/plugin info my-plugin    # show manifest details
-```
-
-### Plugin recommendation engine
-
-```bash
-/plugin recommend                    # auto-detect from project files
-/plugin recommend "docker database"  # recommend by keyword context
-```
-
-The engine matches your context against a curated marketplace (git-tools, python-linter, docker-tools, sql-tools, test-runner, diagram-tools, aws-tools, web-scraper) using tag and keyword scoring.
-
-### Plugin manifest (plugin.json)
-
-```json
-{
-  "name": "my-plugin",
-  "version": "0.1.0",
-  "description": "Does something useful",
-  "author": "you",
-  "tags": ["git", "python"],
-  "tools": ["tools"],        // Python module(s) that export TOOL_DEFS
-  "skills": ["skills/my.md"],
-  "mcp_servers": {},
-  "dependencies": ["httpx"]  // pip packages
-}
-```
-
-Alternatively use YAML frontmatter in `PLUGIN.md`.
-
-### Scopes
-
-| Scope | Location | Config |
-|-------|----------|--------|
-| user (default) | `~/.cheetahclaws/plugins/` | `~/.cheetahclaws/plugins.json` |
-| project | `.cheetahclaws/plugins/` | `.cheetahclaws/plugins.json` |
-
-Use `--project` flag: `/plugin install name@url --project`
-
----
-
-## AskUserQuestion 도구
-
-Claude can pause mid-task and interactively ask you a question before proceeding.
-
-**Example invocation by Claude:**
-```json
-{
-  "tool": "AskUserQuestion",
-  "question": "Which database should I use?",
-  "options": [
-    {"label": "SQLite", "description": "Simple, file-based"},
-    {"label": "PostgreSQL", "description": "Full-featured, requires server"}
-  ],
-  "allow_freetext": true
-}
-```
-
-**What you see in the terminal:**
-```
-❓ Question from assistant:
-   Which database should I use?
-
-  [1] SQLite — Simple, file-based
-  [2] PostgreSQL — Full-featured, requires server
-  [0] Type a custom answer
-
-Your choice (number or text):
-```
-
-- Select by number or type free text directly
-- Claude receives your answer and continues the task
-- 5-minute timeout (returns "(no answer — timeout)" if unanswered)
-
----
-
-## 작업 관리
-
-The `task/` package gives Claude (and you) a structured task list for tracking multi-step work within a session.
-
-### Tools available to Claude
-
-| Tool | Parameters | What it does |
-|------|-----------|--------------|
-| `TaskCreate` | `subject`, `description`, `active_form?`, `metadata?` | Create a task; returns `#id created: subject` |
-| `TaskUpdate` | `task_id`, `subject?`, `description?`, `status?`, `owner?`, `add_blocks?`, `add_blocked_by?`, `metadata?` | Update any field; `status='deleted'` removes the task |
-| `TaskGet` | `task_id` | Return full details of one task |
-| `TaskList` | _(none)_ | List all tasks with status icons and pending blockers |
-
-**Valid statuses:** `pending` → `in_progress` → `completed` / `cancelled` / `deleted`
-
-### Dependency edges
-
-```
-TaskUpdate(task_id="3", add_blocked_by=["1","2"])
-# Task 3 is now blocked by tasks 1 and 2.
-# Reverse edges are set automatically: tasks 1 and 2 get task 3 in their "blocks" list.
-```
-
-Completed tasks are treated as resolved — `TaskList` hides their blocking effect on dependents.
-
-### Persistence
-
-Tasks are saved to `.cheetahclaws/tasks.json` in the current working directory after every mutation and reloaded on first access.
-
-### REPL commands
-
-```
-/tasks                    list all tasks
-/tasks create <subject>   quick-create a task
-/tasks start <id>         mark in_progress
-/tasks done <id>          mark completed
-/tasks cancel <id>        mark cancelled
-/tasks delete <id>        remove a task
-/tasks get <id>           show full details
-/tasks clear              delete all tasks
-```
-
-### Typical Claude workflow
-
-```
-User: implement the login feature
-
-Claude:
-  TaskCreate(subject="Design auth schema", description="JWT vs session")  → #1
-  TaskCreate(subject="Write login endpoint", description="POST /auth/login") → #2
-  TaskCreate(subject="Write tests", description="Unit + integration") → #3
-  TaskUpdate(task_id="2", add_blocked_by=["1"])
-  TaskUpdate(task_id="3", add_blocked_by=["2"])
-
-  TaskUpdate(task_id="1", status="in_progress", active_form="Designing schema")
-  ... (does the work) ...
-  TaskUpdate(task_id="1", status="completed")
-  TaskList()  → task 2 is now unblocked
-  ...
-```
-
----
-
-## 음성 입력
-
-CheetahClaws v3.05 adds a fully offline voice-to-prompt pipeline. Speak your request — it is transcribed and submitted as if you had typed it.
-
-### 빠른 시작
-
-```bash
-# 1. Install a recording backend (choose one)
-pip install sounddevice        # recommended: cross-platform, no extra binary
-# sudo apt install alsa-utils  # Linux arecord fallback
-# sudo apt install sox         # SoX rec fallback
-
-# 2. Install a local STT backend (recommended — works offline, no API key)
-pip install faster-whisper numpy
-
-# 3. Start CheetahClaws and speak
-cheetahclaws
-[myproject] ❯ /voice
-  🎙  Listening… (speak now, auto-stops on silence, Ctrl+C to cancel)
-  🎙  ████
-✓  Transcribed: "fix the authentication bug in user.py"
-[auto-submitting…]
-```
-
-### STT backends (tried in order)
-
-| Backend | Install | Notes |
-|---|---|---|
-| `faster-whisper` | `pip install faster-whisper` | **Recommended** — local, offline, fastest, GPU optional |
-| `openai-whisper` | `pip install openai-whisper` | Local, offline, original OpenAI model |
-| OpenAI Whisper API | set `OPENAI_API_KEY` | Cloud, requires internet + API key |
-
-Override the Whisper model size with `NANO_CLAUDE_WHISPER_MODEL` (default: `base`):
-
-```bash
-export NANO_CLAUDE_WHISPER_MODEL=small   # better accuracy, slower
-export NANO_CLAUDE_WHISPER_MODEL=tiny    # fastest, lightest
-```
-
-### Recording backends (tried in order)
-
-| Backend | Install | Notes |
-|---|---|---|
-| `sounddevice` | `pip install sounddevice` | **Recommended** — cross-platform, Python-native |
-| `arecord` | `sudo apt install alsa-utils` | Linux ALSA, no pip needed |
-| `sox rec` | `sudo apt install sox` / `brew install sox` | Built-in silence detection |
-
-### Keyterm boosting
-
-Before each recording, CheetahClaws extracts coding vocabulary from:
-- **Git branch** (e.g. `feat/voice-input` → "feat", "voice", "input")
-- **Project root name** (e.g. "cheetahclaws")
-- **Recent source file stems** (e.g. `authentication_handler.py` → "authentication", "handler")
-- **Global coding terms**: `MCP`, `grep`, `TypeScript`, `OAuth`, `regex`, `gRPC`, …
-
-These are passed as Whisper's `initial_prompt` so the STT engine prefers correct spellings of coding terms.
-
-### 명령어
-
-| 명령어 | 설명 |
-|---|---|
-| `/voice` | Record voice and auto-submit the transcript as your next prompt |
-| `/voice status` | Show which recording and STT backends are available, plus the active microphone |
-| `/voice lang <code>` | Set transcription language (`en`, `zh`, `ja`, `de`, `fr`, … default: `auto`) |
-| `/voice device` | List all available input microphones and select one interactively; persisted for the session |
-
-### Selecting a microphone
-
-On systems with multiple audio interfaces (USB headsets, virtual devices, etc.) you can pick the exact input device:
-
-```
-[myproject] ❯ /voice device
-  🎙  Available input devices:
-    0. Built-in Microphone
-    1. USB Headset (USB Audio)  ◀  (currently selected)
-    2. Virtual Input (BlackHole)
-  Select device # (Enter to cancel): 1
-✓  Microphone set to: [1] USB Headset (USB Audio)
-```
-
-The selected device is shown in `/voice status` and used for all subsequent recordings until you change it or restart.
-
-### How it compares to Claude Code
-
-| | Claude Code | CheetahClaws v3.05 |
-|---|---|---|
-| STT service | Anthropic private WebSocket (`voice_stream`) | `faster-whisper` / `openai-whisper` / OpenAI API |
-| Requires Anthropic OAuth | Yes | **No** |
-| Works offline | No | **Yes** (with local Whisper) |
-| Keyterm hints | Deepgram `keyterms` param | Whisper `initial_prompt` (git + files + vocab) |
-| Language support | Server-allowlisted codes | Any language Whisper supports |
-
----
-
-## 브레인스토밍
-
-`/brainstorm` runs a structured multi-persona AI debate over your project, then synthesizes all perspectives into an actionable plan.
-
-### 작동 방식
-
-1. **Context snapshot** — reads `README.md`, `CLAUDE.md`, and root file listing from the current working directory.
-2. **Agent count** — you are prompted to choose how many agents (2–100, default 5). Press Enter to use the default.
-3. **Dynamic persona generation** — the model generates N expert roles tailored to your topic. Software topics get architects and engineers; geopolitics gets analysts, diplomats, and economists; business gets strategists and market experts. Falls back to built-in tech personas if generation fails.
-4. **Agents debate sequentially**, each building on the previous responses.
-5. **Output saved** to `brainstorm_outputs/brainstorm_YYYYMMDD_HHMMSS.md` in the current directory.
-6. **Synthesis** — the main agent reads the saved file and produces a prioritized Master Plan.
-
-**Example personas by topic:**
-
-| Topic | Example Generated Personas |
-|---|---|
-| Software architecture | 🏗️ Architect · 💡 Product Innovator · 🛡️ Security Engineer · 🔧 Code Quality Lead · ⚡ Performance Specialist |
-| US-Iran geopolitics | 🌍 Geopolitical Analyst · ⚖️ International Law Expert · 💰 Energy Economist · 🎖️ Military Strategist · 🕊️ Conflict Mediator |
-| Business strategy | 📈 Market Strategist · 💼 Operations Lead · 🔍 Competitive Intelligence · 💡 Innovation Director · 📊 Financial Analyst |
-
-### 사용법
-
-```
-[myproject] ❯ /brainstorm
-  How many agents? (2-100, default 5) > 5
-
-[myproject] ❯ /brainstorm improve plugin architecture
-  How many agents? (2-100, default 5) > 3
-
-[myproject] ❯ /brainstorm US-Iran geopolitics
-  How many agents? (2-100, default 5) > 7
-```
-
-### 예시 output
-
-```
-[myproject] ❯ /brainstorm medical research funding
-  How many agents? (2-100, default 5) > 3
-Generating 3 topic-appropriate expert personas...
-Starting 3-Agent Brainstorming Session on: medical research funding
-Generating diverse perspectives...
-🩺 Clinical Trials Director is thinking...
-  └─ Perspective captured.
-⚖️ Medical Ethics Committee Member is thinking...
-  └─ Perspective captured.
-💰 Health Economics Policy Analyst is thinking...
-  └─ Perspective captured.
-✓  Brainstorming complete! Results saved to brainstorm_outputs/brainstorm_20260405_224117.md
-
-   ── Analysis from Main Agent ──
-[synthesized Master Plan streams here…]
-```
-
-### Notes
-
-- Brainstorm uses the **currently selected model** (`/model` to check). A capable model (Claude Sonnet/Opus, GPT-4o, or a large local model) gives the best results.
-- With many agents (20+) the session can take several minutes depending on model speed.
-- Install `faker` (`pip install faker`) for randomized persona names; falls back to built-in names otherwise.
-- Output files accumulate in `brainstorm_outputs/` — already added to `.gitignore` by v3.5.5.
-- Long responses keep rendering live but show only the most recent screenful (a bounded tail window) until they finish, so duplicate/stale lines are prevented automatically. If output still looks garbled in SSH (repeated lines), run `/config rich_live=false` to fully disable Rich Live streaming.
-
----
-
-## SSJ 개발자 모드
-
-`/ssj` opens a persistent interactive power menu — a single entry point for the most common development workflows, so you never have to remember command names.
-
-<div align=center>
-<img src="../media/demos/ssj_demo.gif" width="850"/>
-</div>
-
-### Menu options
-
-| # | Name | What it does |
-|---|------|--------------|
-| 1 | 💡 Brainstorm | Multi-persona AI debate → Master Plan → auto-generates `brainstorm_outputs/todo_list.txt` |
-| 2 | 📋 Show TODO | View `brainstorm_outputs/todo_list.txt` with ✓/○ indicators and pending task numbers |
-| 3 | 👷 Worker | Auto-implement pending tasks (all, or select by number) |
-| 4 | 🧠 Debate | Pick a file and choose agent count — expert panel debates design round-by-round; result saved next to the file |
-| 5 | ✨ Propose | Pick a file — AI proposes specific improvements with code |
-| 6 | 🔎 Review | Pick a file — structured code review with 1–10 ratings per dimension |
-| 7 | 📘 Readme | Pick a file — auto-generate a professional README for it |
-| 8 | 💬 Commit | Analyse git diff and suggest a conventional commit message |
-| 9 | 🧪 Scan | Summarise all staged/unstaged changes and suggest next steps |
-| 10 | 📝 Promote | Read the latest brainstorm output → convert ideas to `todo_list.txt` tasks |
-| 0 | 🚪 Exit | Return to the main REPL |
-
-### 사용법
-
-```
-[myproject] ❯ /ssj
-
-╭─ SSJ Developer Mode ⚡ ─────────────────────────
-│
-│   1.  💡  Brainstorm — Multi-persona AI debate
-│   2.  📋  Show TODO  — View todo_list.txt
-│   3.  👷  Worker     — Auto-implement pending tasks
-│   4.  🧠  Debate     — Expert debate on a file
-│   5.  ✨  Propose    — AI improvement for a file
-│   6.  🔎  Review     — Quick file analysis
-│   7.  📘  Readme     — Auto-generate README.md
-│   8.  💬  Commit     — AI-suggested commit message
-│   9.  🧪  Scan       — Analyze git diff
-│  10.  📝  Promote    — Idea to tasks
-│   0.  🚪  Exit SSJ Mode
-│
-╰──────────────────────────────────────────────
-
-  ⚡ SSJ » 1
-  Topic (Enter for general): cheetahclaws plugin system
-
-  # → Brainstorm spins up, saves to brainstorm_outputs/, generates todo_list.txt
-  # → Menu re-opens automatically after each action
-
-  ⚡ SSJ » 2
-  # → Shows numbered pending tasks from brainstorm_outputs/todo_list.txt
-
-  ⚡ SSJ » 3
-  Task # (Enter for all, or e.g. 1,4,6): 2
-  # → Worker implements task #2 and marks it done
-```
-
-### Slash command passthrough
-
-Any `/command` typed at the `⚡ SSJ »` prompt is passed through to the REPL:
-
-```
-  ⚡ SSJ » /model gpt-4o
-  # → switches model, then re-opens SSJ menu
-
-  ⚡ SSJ » /exit
-  # → exits cheetahclaws immediately
-```
-
-### Worker command
-
-`/worker` (also accessible as SSJ option 3) reads `brainstorm_outputs/todo_list.txt` and auto-implements each pending task:
-
-```
-[myproject] ❯ /worker
-  ✓ Worker starting — 3 task(s) to implement
-    1. ○ Add animated brainstorm spinner
-    2. ○ Implement Telegram typing indicator
-    3. ○ Write SSJ demo GIF for README
-
-  ── Worker (1/3): Add animated brainstorm spinner ──
-  [model reads code, implements the change, marks task done]
-
-[myproject] ❯ /worker 2,3
-  # Implement only tasks 2 and 3
-
-[myproject] ❯ /worker --path docs/tasks.md
-  # Use a custom todo file
-
-[myproject] ❯ /worker --workers 2
-  # Process only the first 2 pending tasks this run
-```
-
-**Smart path detection** — if you pass a brainstorm output file (`.md`) by mistake, Worker detects it and offers to redirect to the matching `todo_list.txt` in the same folder. If that file does not yet exist, it offers to generate `todo_list.txt` from the brainstorm output first (SSJ Promote), then run Worker automatically.
-
-### Debate command
-
-SSJ option 4 runs a structured multi-round expert debate on any file:
-
-```
-  ⚡ SSJ » 4
-
-  Files in brainstorm_outputs/:
-    1. brainstorm_20260406_143022.md
-    2. cheetahclaws.py
-
-  File to debate #: 2
-  Number of debate agents (Enter for 2): 3
-  ℹ Debate result will be saved to: cheetahclaws_debate_143055.md
-
-⚔️  Assembling expert panel...
-  Expert 1: 🏗️ Architecture Lead — focus: system design & modularity
-  Expert 2: 🔐 Security Engineer — focus: attack surface & input validation
-  Expert 3: ⚡ Performance Specialist — focus: latency & memory usage
-
-⚔️  Round 1/5 — Expert 1 thinking...
-  [Architecture Lead gives opening argument...]
-
-💬  Round 1/5 — Expert 2 formulating...
-  [Security Engineer responds...]
-  ...
-
-📜  Drafting final consensus...
-  [model writes consensus + saves transcript]
-✓ Debate complete. Saved to cheetahclaws_debate_143055.md
-```
-
-- Agent count is configurable (minimum 2, default 2). Rounds are set to `agents × 2 − 1` for a full open-close structure.
-- An animated spinner shows the current round and expert (`⚔️ Round 2/3 — Expert 1 thinking...`), stopping the moment that expert starts outputting.
-- The full debate transcript and ranked consensus are saved to `<filename>_debate_HHMMSS.md` **in the same directory as the debated file**.
-
----
-
-## 텔레그램 브리지
-
-`/telegram` turns cheetahclaws into a Telegram bot — receive messages from your phone, run the model with full tool access, and reply automatically.
-
-<div align=center>
-<img src="../media/demos/telegram_demo.gif" width="850"/>
-</div>
-
-### 설정 (1회)
-
-1. Open [@BotFather](https://t.me/BotFather) in Telegram → `/newbot` → copy the token.
-2. Send any message to your new bot (e.g. "hi"), then open the URL below in your browser — replace `<TOKEN>` with your real token:
-
-```
-https://api.telegram.org/bot<TOKEN>/getUpdates
-```
-
-The response is JSON. Find `"chat"` → `"id"` — that number is your chat ID:
-
-```json
-{
-  "ok": true,
-  "result": [
-    {
-      "update_id": 100000001,
-      "message": {
-        "from": { "id": 987654321, "first_name": "Zhang" },
-        "chat": {
-          "id": 987654321,
-          "type": "private"
-        },
-        "text": "hi"
-      }
-    }
-  ]
-}
-```
-
-> **Tip:** if `result` is empty, go back to Telegram, send another message to your bot, then refresh the URL.
-
-3. Configure cheetahclaws (example with the values above):
-
-```
-[myproject] ❯ /telegram 7812345678:AAFxyz123abcDEF456ghiJKL789 987654321
-  ✓ Telegram config saved.
-  ✓ Connected to @your_bot_name. Starting bridge...
-  ✓ Telegram bridge active. Chat ID: 987654321
-  ℹ Send messages to your bot — they'll be processed here.
-  ℹ Stop with /telegram stop or send /stop in Telegram.
-```
-
-Token and chat_id are saved to `~/.cheetahclaws/config.json`. On next launch the bridge **auto-starts** if configured — the startup banner shows `flags: [telegram]`.
-
-### 작동 방식
-
-```
-Phone (Telegram)                  cheetahclaws terminal
-──────────────────                ──────────────────────────
-"List Python files"      →        📩 Telegram: List Python files
-                                  [typing indicator sent...]
-                                  ⚙ Glob(**/*.py) → 5 files
-                                  ⚙ response assembled
-                          ←       "agent.py, tools.py, ..."
-```
-
-- **Typing indicator** is sent every 4 seconds while the model processes, so the chat feels responsive.
-- **Unauthorized senders** receive `⛔ Unauthorized.` and their messages are dropped.
-- **Slash command passthrough**: send `/cost`, `/model gpt-4o`, `/clear`, etc. from Telegram and they execute in cheetahclaws.
-- **Interactive menus over Telegram**: commands with interactive prompts (e.g. `/ollama` model picker, `/permission`, `/checkpoint` restore) now run in a background thread so the poll loop stays free. The menu options are sent as a Telegram message and the next reply you send is used as the selection.
-- **`/stop` or `/off`** sent from Telegram stops the bridge gracefully.
-
-### 명령어
-
-| 명령어 | 설명 |
-|---|---|
-| `/telegram <token> <chat_id>` | Configure token + chat_id, then start the bridge |
-| `/telegram` | Start the bridge using saved config |
-| `/telegram status` | Show running state and chat_id |
-| `/telegram stop` | Stop the bridge |
-
-### Auto-start
-
-If both `telegram_token` and `telegram_chat_id` are set in `~/.cheetahclaws/config.json`, the bridge starts automatically on every cheetahclaws launch:
-
-```
-╭─ CheetahClaws ────────────────────────────────╮
-│  Model:       claude-opus-4-6
-│  Permissions: auto   flags: [telegram]
-│  Type /help for commands, Ctrl+C to cancel        │
-╰───────────────────────────────────────────────────╯
-✓ Telegram bridge started (auto). Bot: @your_bot_name
-```
-
----
-
-## 능동형 백그라운드 모니터링
-
-CheetahClaws v3.5.2 adds a **sentinel daemon** that automatically wakes the agent after a configurable period of inactivity — no user prompt required. This enables use cases like continuous log monitoring, market script polling, or scheduled code checks.
-
-### 빠른 시작
-
-```
-[myproject] ❯ /proactive 5m
-Proactive background polling: ON  (triggering every 300s of inactivity)
-
-[myproject] ❯ keep monitoring the build log and alert me if errors appear
-
-╭─ Claude ● ─────────────────────────
-│ Understood. I'll check the build log each time I wake up.
-
-[Background Event Triggered]
-╭─ Claude ● ─────────────────────────
-│ ⚙ Bash(tail -50 build.log)
-│ ✓ → Build failed: ImportError in auth.py line 42
-│ **Action needed:** fix the import before the next CI run.
-```
-
-### 명령어
-
-| 명령어 | 설명 |
-|---|---|
-| `/proactive` | Show current status (ON/OFF and interval) |
-| `/proactive 5m` | Enable — trigger every 5 minutes of inactivity |
-| `/proactive 30s` | Enable — trigger every 30 seconds |
-| `/proactive 1h` | Enable — trigger every hour |
-| `/proactive off` | Disable sentinel polling |
-
-Duration suffix: `s` = seconds, `m` = minutes, `h` = hours. Plain integer = seconds.
-
-### 작동 방식
-
-- A background daemon thread starts when the REPL launches (paused by default).
-- The daemon checks elapsed time since the last user or agent interaction every second.
-- When the inactivity threshold is reached, it calls the agent with a wake-up prompt.
-- The `threading.Lock` used by the main agent loop ensures wake-ups never interrupt an active session — they queue and fire after the current turn completes.
-- Watcher exceptions are logged via `traceback` so failures are visible and debuggable.
-
-### Complements SleepTimer
-
-| | `SleepTimer` | `/proactive` |
-|---|---|---|
-| Who initiates | The agent | The user |
-| Trigger | After a fixed delay from now | After N seconds of inactivity |
-| Use case | "Check back in 10 minutes" | "Keep watching until I stop typing" |
-
----
-
-## 체크포인트 시스템
-
-CheetahClaws automatically snapshots your conversation and any edited files after every turn, so you can always rewind to an earlier state.
-
-### 작동 방식
-
-- **Auto-snapshot** — after each turn, the checkpoint system saves the current conversation messages, token counts, and a copy-on-write backup of every file that was written or edited that turn.
-- **100-snapshot sliding window** — older snapshots are automatically evicted when the limit is reached.
-- **Throttling** — if nothing changed (no new messages, no file edits) since the last snapshot, the snapshot is skipped.
-- **Initial snapshot** — captured at session start, so you can always rewind to a clean slate.
-- **Storage** — `~/.nano_claude/checkpoints/<session_id>/` (snapshots metadata + backup files).
-
-### 명령어
-
-| 명령어 | 설명 |
-|---|---|
-| `/checkpoint` | List all snapshots for the current session |
-| `/checkpoint <id>` | Rewind: restore files to their state at snapshot `<id>` and trim conversation to that point |
-| `/checkpoint clear` | Delete all snapshots for the current session |
-| `/rewind` | Alias for `/checkpoint` |
-
-### 예시
-
-```
-[myproject] ❯ /checkpoint
-  Checkpoints (4 total):
-  #1  [turn 0] 14:02:11  "(initial state)"           0 files
-  #2  [turn 1] 14:03:45  "Create app.py"              1 file
-  #3  [turn 2] 14:05:12  "Add error handling"         1 file
-  #4  [turn 3] 14:06:30  "Explain the code"           1 file
-
-[myproject] ❯ /checkpoint 2
-  Rewound to checkpoint #2 (turn 1)
-  Restored: app.py
-  Conversation trimmed to 2 messages.
-```
-
----
-
-## 계획 모드
-
-Plan mode is a structured workflow for tackling complex, multi-file tasks: Claude first analyses the codebase in a read-only phase and writes an explicit plan, then the user approves before implementation begins.
-
-### 작동 방식
-
-In plan mode:
-- **Only reads** are permitted (`Read`, `Glob`, `Grep`, `WebFetch`, `WebSearch`, safe `Bash` commands).
-- **Writes are blocked** everywhere **except** the dedicated plan file (`.nano_claude/plans/<session_id>.md`).
-- Blocked write attempts produce a helpful message rather than prompting the user.
-- The system prompt is augmented with plan mode instructions.
-- After compaction, the plan file context is automatically restored.
-
-### Slash command workflow
-
-```
-[myproject] ❯ /plan add WebSocket support
-  Plan mode activated.
-  Plan file: .nano_claude/plans/a3f9c1b2.md
-  Reads allowed. All other writes blocked (except plan file).
-
-[myproject] ❯ <describe your task>
-  [Claude reads files, builds understanding, writes plan to plan file]
-
-[myproject] ❯ /plan
-  # Plan: Add WebSocket support
-
-  ## Phase 1: Create ws_handler.py
-  ## Phase 2: Modify server.py to mount the handler
-  ## Phase 3: Add tests
-
-[myproject] ❯ /plan done
-  Plan mode exited. Permission mode restored to: auto
-  Review the plan above and start implementing when ready.
-
-[myproject] ❯ /plan status
-  Plan mode: INACTIVE  (permission mode: auto)
-```
-
-### Agent tool workflow (autonomous)
-
-Claude can autonomously enter and exit plan mode using the `EnterPlanMode` and `ExitPlanMode` tools — both are auto-approved in all permission modes:
-
-```
-User: Refactor the authentication module
-
-Claude: [calls EnterPlanMode(task_description="Refactor auth module")]
-  → reads auth.py, users.py, tests/test_auth.py ...
-  → writes plan to .nano_claude/plans/...
-  [calls ExitPlanMode()]
-  → "Here is my plan. Please review and approve before I begin."
-
-User: Looks good, go ahead.
-Claude: [implements the plan]
-```
-
-### 명령어
-
-| 명령어 | 설명 |
-|---|---|
-| `/plan <description>` | Enter plan mode with a task description |
-| `/plan` | Print the current plan file contents |
-| `/plan done` | Exit plan mode, restore previous permissions |
-| `/plan status` | Show whether plan mode is active |
-
----
-
-## 컨텍스트 압축
-
-Long conversations are automatically compressed to stay within the model's context window.
-
-**Two layers:**
-
-1. **Snip** — Old tool outputs (file reads, bash results) are truncated after a few turns. Fast, no API cost.
-2. **Auto-compact** — When token usage exceeds 70% of the context limit, older messages are summarized by the model into a concise recap.
-
-This happens transparently. You don't need to do anything.
-
-**Manual compaction** — You can also trigger compaction at any time with `/compact`. An optional focus string tells the summarizer what context to prioritize:
-
-```
-[myproject] ❯ /compact
-  Compacted: ~12400 → ~3200 tokens (~9200 saved)
-
-[myproject] ❯ /compact keep the WebSocket implementation details
-  Compacted: ~11800 → ~3100 tokens (~8700 saved)
-```
-
-If plan mode is active, the plan file context is automatically restored after any compaction.
-
----
-
-## Diff 보기
-
-When the model edits or overwrites a file, you see a git-style diff:
-
-```diff
-  Changes applied to config.py:
-
---- a/config.py
-+++ b/config.py
-@@ -12,7 +12,7 @@
-     "model": "claude-opus-4-6",
--    "max_tokens": 8192,
-+    "max_tokens": 16384,
-     "permission_mode": "auto",
-```
-
-Green lines = added, red lines = removed. New file creations show a summary instead.
-
----
-
-## CLAUDE.md 지원
-
-Place a `CLAUDE.md` file in your project to give the model persistent context about your codebase. CheetahClaws automatically finds and injects it into the system prompt.
-
-```
-~/.claude/CLAUDE.md          # Global — applies to all projects
-/your/project/CLAUDE.md      # Project-level — found by walking up from cwd
-```
-
-**Example `CLAUDE.md`:**
-
-```markdown
-# Project: FastAPI Backend
-
-## Stack
-- Python 3.12, FastAPI, PostgreSQL, SQLAlchemy 2.0, Alembic
-- Tests: pytest, coverage target 90%
-
-## Conventions
-- Format with black, lint with ruff
-- Full type annotations required
-- New endpoints must have corresponding tests
-
-## Important Notes
-- Never hard-code credentials — use environment variables
-- Do not modify existing Alembic migration files
-- The `staging` branch deploys automatically to staging on push
-```
-
----
-
-## 세션 관리
-
-### 저장 layout
-
-Every exit automatically saves to three places:
-
-```
-~/.cheetahclaws/sessions/
-├── history.json                          ← master: all sessions ever (capped)
-├── mr_sessions/
-│   └── session_latest.json              ← always the most recent (/resume)
-└── daily/
-    ├── 2026-04-05/
-    │   ├── session_110523_a3f9.json     ← per-day files, newest kept
-    │   └── session_143022_b7c1.json
-    └── 2026-04-04/
-        └── session_183100_3b4c.json
-```
-
-Each session file includes metadata:
-
-```json
-{
-  "session_id": "a3f9c1b2",
-  "saved_at": "2026-04-05 11:05:23",
-  "turn_count": 8,
-  "messages": [...]
-}
-```
-
-### Autosave on exit
-
-Every time you exit — via `/exit`, `/quit`, `Ctrl+C`, or `Ctrl+D` — the session is saved automatically:
-
-```
-✓ Session saved → /home/.../.cheetahclaws/sessions/mr_sessions/session_latest.json
-✓              → /home/.../.cheetahclaws/sessions/daily/2026-04-05/session_110523_a3f9.json  (id: a3f9c1b2)
-✓   history.json: 12 sessions / 87 total turns
-```
-
-### Quick resume
-
-To continue where you left off:
-
-```bash
-cheetahclaws
-[myproject] ❯ /resume
-✓  Session loaded from …/mr_sessions/session_latest.json (42 messages)
-```
-
-Resume a specific file:
-
-```bash
-/resume session_latest.json          # loads from mr_sessions/
-/resume /absolute/path/to/file.json  # loads from absolute path
-```
-
-### Manual save / load
-
-```bash
-/save                          # save with auto-name (session_TIMESTAMP_ID.json)
-/save debug_auth_bug           # named save to ~/.cheetahclaws/sessions/
-
-/load                          # interactive list grouped by date
-/load debug_auth_bug           # load by filename
-```
-
-**`/load` interactive list:**
-
-```
-  ── 2026-04-05 ──
-  [ 1] 11:05:23  id:a3f9c1b2  turns:8   session_110523_a3f9.json
-  [ 2] 09:22:01  id:7e2d4f91  turns:3   session_092201_7e2d.json
-
-  ── 2026-04-04 ──
-  [ 3] 22:18:00  id:3b4c5d6e  turns:15  session_221800_3b4c.json
-
-  ── Complete History ──
-  [ H] Load ALL history  (3 sessions / 26 total turns)  /home/.../.cheetahclaws/sessions/history.json
-
-  Enter number(s) (e.g. 1 or 1,2,3), H for full history, or Enter to cancel >
-```
-
-- Enter a single number to load one session
-- Enter comma-separated numbers (e.g. `1,3`) to merge multiple sessions in order
-- Enter `H` to load the entire history — shows message count and token estimate before confirming
-
-### Configurable limits
-
-| Config key | Default | Description |
-|---|---|---|
-| `session_daily_limit` | `5` | Max session files kept per day in `daily/` |
-| `session_history_limit` | `100` | Max sessions kept in `history.json` |
-
-```bash
-/config session_daily_limit=10
-/config session_history_limit=200
-```
-
-### history.json — full conversation history
-
-`history.json` accumulates every session in one place, making it possible to search your complete conversation history or analyze usage patterns:
-
-```json
-{
-  "total_turns": 150,
-  "sessions": [
-    {"session_id": "a3f9c1b2", "saved_at": "2026-04-05 11:05:23", "turn_count": 8, "messages": [...]},
-    {"session_id": "7e2d4f91", "saved_at": "2026-04-05 09:22:01", "turn_count": 3, "messages": [...]}
-  ]
-}
-```
-
----
-
-## 클라우드 동기화 (GitHub Gist)
-
-CheetahClaws v3.5.3 adds optional cloud backup of conversation sessions via **GitHub Gist**. Sessions are stored as private Gists (JSON), browsable in the GitHub UI. No extra dependencies — uses Python's stdlib `urllib`.
-
-### 설정 (1회)
-
-1. Go to [github.com/settings/tokens](https://github.com/settings/tokens) → **Generate new token (classic)**
-2. Enable the **`gist`** scope
-3. Copy the token and run:
-
-```
-[myproject] ❯ /cloudsave setup ghp_xxxxxxxxxxxxxxxxxxxx
-✓ GitHub token saved (logged in as: Chauncygu). Cloud sync is ready.
-```
-
-### Upload a session
-
-```
-[myproject] ❯ /cloudsave
-Uploading session to GitHub Gist…
-✓ Session uploaded → https://gist.github.com/abc123def456
-```
-
-Add an optional description:
-
-```
-[myproject] ❯ /cloudsave push auth refactor debug session
-```
-
-### Auto-sync on exit
-
-```
-[myproject] ❯ /cloudsave auto on
-✓ Auto cloud-sync ON — session will be uploaded to Gist on /exit.
-```
-
-From that point on, every `/exit` or `/quit` automatically uploads the session before closing.
-
-### Browse and restore
-
-```
-[myproject] ❯ /cloudsave list
-  Found 3 session(s):
-  abc123de…  2026-04-05 11:02  auth refactor debug session
-  7f9e12ab…  2026-04-04 22:18  proactive monitoring test
-  3b4c5d6e…  2026-04-04 18:31
-
-[myproject] ❯ /cloudsave load abc123de...full-gist-id...
-✓ Session loaded from Gist (42 messages).
-```
-
-### 명령어 reference
-
-| 명령어 | 설명 |
-|---|---|
-| `/cloudsave setup <token>` | Save GitHub token (needs `gist` scope) |
-| `/cloudsave` | Upload current session to a new or existing Gist |
-| `/cloudsave push [desc]` | Upload with optional description |
-| `/cloudsave auto on\|off` | Toggle auto-upload on exit |
-| `/cloudsave list` | List all cheetahclaws Gists |
-| `/cloudsave load <gist_id>` | Download and restore a session |
-
----
-
-## 프로젝트 구조
-
-```
-cheetahclaws/
-├── cheetahclaws.py        # Entry point: REPL + slash commands + diff rendering + Rich Live streaming + proactive sentinel daemon + SSJ mode + Telegram bridge + Worker command
-├── agent.py              # Agent loop: streaming, tool dispatch, compaction
-├── providers.py          # Multi-provider: Anthropic, OpenAI-compat streaming
-├── tools.py              # Core tools (Read/Write/Edit/Bash/Glob/Grep/Web/NotebookEdit/GetDiagnostics) + registry wiring
-├── tool_registry.py      # Tool plugin registry: register, lookup, execute
-├── compaction.py         # Context compression: snip + auto-summarize
-├── context.py            # System prompt builder: CLAUDE.md + git + memory
-├── config.py             # Config load/save/defaults; DAILY_DIR, SESSION_HIST_FILE paths
-├── cloudsave.py          # GitHub Gist cloud sync (upload/download/list sessions)
-│
-├── multi_agent/          # Multi-agent package
-│   ├── __init__.py       # Re-exports
-│   ├── subagent.py       # AgentDefinition, SubAgentManager, worktree helpers
-│   └── tools.py          # Agent, SendMessage, CheckAgentResult, ListAgentTasks, ListAgentTypes
-├── subagent.py           # Backward-compat shim → multi_agent/
-│
-├── memory/               # Memory package
-│   ├── __init__.py       # Re-exports
-│   ├── types.py          # MEMORY_TYPES and format guidance
-│   ├── store.py          # save/load/delete/search, MEMORY.md index rebuilding
-│   ├── scan.py           # MemoryHeader, age/freshness helpers
-│   ├── context.py        # get_memory_context(), truncation, AI search
-│   └── tools.py          # MemorySave, MemoryDelete, MemorySearch, MemoryList
-├── memory.py             # Backward-compat shim → memory/
-│
-├── skill/                # Skill package
-│   ├── __init__.py       # Re-exports; imports builtin to register built-ins
-│   ├── loader.py         # SkillDef, parse, load_skills, find_skill, substitute_arguments
-│   ├── builtin.py        # Built-in skills: /commit, /review
-│   ├── executor.py       # execute_skill(): inline or forked sub-agent
-│   └── tools.py          # Skill, SkillList
-├── skills.py             # Backward-compat shim → skill/
-│
-├── mcp/                  # MCP (Model Context Protocol) package
-│   ├── __init__.py       # Re-exports
-│   ├── types.py          # MCPServerConfig, MCPTool, MCPServerState, JSON-RPC helpers
-│   ├── client.py         # StdioTransport, HttpTransport, MCPClient, MCPManager
-│   ├── config.py         # Load .mcp.json (project) + ~/.cheetahclaws/mcp.json (user)
-│   └── tools.py          # Auto-discover + register MCP tools into tool_registry
-│
-├── voice/                # Voice input package (v3.05)
-│   ├── __init__.py       # Public API: check_voice_deps, voice_input
-│   ├── recorder.py       # Audio capture: sounddevice → arecord → sox rec
-│   ├── stt.py            # STT: faster-whisper → openai-whisper → OpenAI API
-│   └── keyterms.py       # Coding-domain vocab from git branch + project files
-│
-├── checkpoint/           # Checkpoint system (v3.5.6)
-│   ├── __init__.py       # Public API exports
-│   ├── types.py          # FileBackup + Snapshot dataclasses; MAX_SNAPSHOTS = 100
-│   ├── store.py          # File-level backup, snapshot persistence, rewind, cleanup
-│   └── hooks.py          # Write/Edit/NotebookEdit interception — backs up files before modification
-│
-└── tests/                # 263+ unit tests
-    ├── test_mcp.py
-    ├── test_memory.py
-    ├── test_skills.py
-    ├── test_subagent.py
-    ├── test_tool_registry.py
-    ├── test_compaction.py
-    ├── test_diff_view.py
-    ├── test_voice.py         # 29 voice tests (no hardware required)
-    ├── test_checkpoint.py    # 24 checkpoint unit tests
-    ├── e2e_checkpoint.py     # 10-step checkpoint lifecycle test
-    ├── e2e_plan_mode.py      # 10-step plan mode permission test
-    ├── e2e_plan_tools.py     # 8-step EnterPlanMode/ExitPlanMode tool test
-    ├── e2e_compact.py        # 9-step compaction test
-    └── e2e_commands.py       # 9-step /init /export /copy /status test
-```
-
-> **For developers:** Each feature package (`multi_agent/`, `memory/`, `skill/`, `mcp/`, `voice/`, `checkpoint/`) is self-contained. Add custom tools by calling `register_tool(ToolDef(...))` from any module imported by `tools.py`.
-
----
-
-## FAQ
-
-**Q: How do I add an MCP server?**
-
-Option 1 — via REPL (stdio server):
-```
-/mcp add git uvx mcp-server-git
-```
-
-Option 2 — create `.mcp.json` in your project:
-```json
-{
-  "mcpServers": {
-    "git": {"type": "stdio", "command": "uvx", "args": ["mcp-server-git"]}
-  }
-}
-```
-
-Then run `/mcp reload` or restart. Use `/mcp` to check connection status.
-
-**Q: An MCP server is showing an error. How do I debug it?**
-
-```
-/mcp                    # shows error message per server
-/mcp reload git         # try reconnecting
-```
-
-If the server uses stdio, make sure the command is in your `$PATH`:
-```bash
-which uvx               # should print a path
-uvx mcp-server-git      # run manually to see errors
-```
-
-**Q: Can I use MCP servers that require authentication?**
-
-For HTTP/SSE servers with a Bearer token:
-```json
-{
-  "mcpServers": {
-    "my-api": {
-      "type": "sse",
-      "url": "https://myserver.example.com/sse",
-      "headers": {"Authorization": "Bearer sk-my-token"}
-    }
-  }
-}
-```
-
-For stdio servers with env-based auth:
-```json
-{
-  "mcpServers": {
-    "brave": {
-      "type": "stdio",
-      "command": "uvx",
-      "args": ["mcp-server-brave-search"],
-      "env": {"BRAVE_API_KEY": "your-key"}
-    }
-  }
-}
-```
-
-**Q: Tool calls don't work with my local Ollama model.**
-
-Not all models support function calling. Use one of the recommended tool-calling models: `qwen2.5-coder`, `llama3.3`, `mistral`, or `phi4`.
-
-```bash
-ollama pull qwen2.5-coder
-cheetahclaws --model ollama/qwen2.5-coder
-```
-
-**Q: How do I connect to a remote GPU server running vLLM?**
-
-```
-/config custom_base_url=http://your-server-ip:8000/v1
-/config custom_api_key=your-token
-/model custom/your-model-name
-```
-
-**Q: How do I check my API cost?**
-
-```
-/cost
-
-  Input tokens:  3,421
-  Output tokens:   892
-  Est. cost:     $0.0648 USD
-```
-
-**Q: Can I use multiple API keys in the same session?**
-
-Yes. Set all the keys you need upfront (via env vars or `/config`). Then switch models freely — each call uses the key for the active provider.
-
-**Q: How do I make a model available across all projects?**
-
-Add keys to `~/.bashrc` or `~/.zshrc`. Set the default model in `~/.cheetahclaws/config.json`:
-
-```json
-{ "model": "claude-sonnet-4-6" }
-```
-
-**Q: Qwen / Zhipu returns garbled text.**
-
-Ensure your `DASHSCOPE_API_KEY` / `ZHIPU_API_KEY` is correct and the account has sufficient quota. Both providers use UTF-8 and handle Chinese well.
-
-**Q: Can I pipe input to cheetahclaws?**
-
-```bash
-echo "Explain this file" | cheetahclaws --print --accept-all
-cat error.log | cheetahclaws -p "What is causing this error?"
-```
-
-**Q: How do I run it as a CLI tool from anywhere?**
-
-Use `uv tool install` — it creates an isolated environment and puts `cheetahclaws` on your PATH:
-
-```bash
-cd cheetahclaws
-uv tool install .
-```
-
-After that, just run `cheetahclaws` from any directory. To update after pulling changes, run `uv tool install . --reinstall`.
-
-**Q: How do I set up voice input?**
-
-```bash
-# Minimal setup (local, offline, no API key):
-pip install sounddevice faster-whisper numpy
-
-# Then in the REPL:
-/voice status          # verify backends are detected
-/voice                 # speak your prompt
-```
-
-On first use, `faster-whisper` downloads the `base` model (~150 MB) automatically.
-Use a larger model for better accuracy: `export NANO_CLAUDE_WHISPER_MODEL=small`
-
-**Q: Voice input transcribes my words wrong (misses coding terms).**
-
-The keyterm booster already injects coding vocabulary from your git branch and project files.
-For persistent domain terms, put them in a `.cheetahclaws/voice_keyterms.txt` file (one term per line) — this is checked automatically on each recording.
-
-**Q: Can I use voice input in Chinese / Japanese / other languages?**
-
-Yes. Set the language before recording:
-
-```
-/voice lang zh    # Mandarin Chinese
-/voice lang ja    # Japanese
-/voice lang auto  # reset to auto-detect (default)
-```
-
-Whisper supports 99 languages. `auto` detection works well but explicit codes improve accuracy for short utterances.
+## 모든 기여자분들께 감사드립니다:
+
+<!-- contributors:start -->
+
+<a href="https://github.com/chauncygu"><img src="https://avatars.githubusercontent.com/u/27274029?v=4&s=48" width="48" height="48" alt="chauncygu"/></a>
+<a href="https://github.com/KevRojo"><img src="https://avatars.githubusercontent.com/u/9065636?v=4&s=48" width="48" height="48" alt="KevRojo"/></a>
+<a href="https://github.com/mxh1999"><img src="https://avatars.githubusercontent.com/u/30319236?v=4&s=48" width="48" height="48" alt="mxh1999"/></a>
+<a href="https://github.com/seetvn"><img src="https://avatars.githubusercontent.com/u/100040536?v=4&s=48" width="48" height="48" alt="seetvn"/></a>
+<a href="https://github.com/bmaltais"><img src="https://avatars.githubusercontent.com/u/7474674?v=4&s=48" width="48" height="48" alt="bmaltais"/></a>
+<a href="https://github.com/RheagalFire"><img src="https://avatars.githubusercontent.com/u/60213893?v=4&s=48" width="48" height="48" alt="RheagalFire"/></a>
+<a href="https://github.com/yamaceay"><img src="https://avatars.githubusercontent.com/u/46201716?v=4&s=48" width="48" height="48" alt="yamaceay"/></a>
+<a href="https://github.com/tsint"><img src="https://avatars.githubusercontent.com/u/63944253?v=4&s=48" width="48" height="48" alt="tsint"/></a>
+<a href="https://github.com/albertcheng"><img src="https://avatars.githubusercontent.com/u/2686135?v=4&s=48" width="48" height="48" alt="albertcheng"/></a>
+<a href="https://github.com/LostAion"><img src="https://avatars.githubusercontent.com/u/84846068?v=4&s=48" width="48" height="48" alt="LostAion"/></a>
+<a href="https://github.com/lucaszhu-hue"><img src="https://avatars.githubusercontent.com/u/278269343?v=4&s=48" width="48" height="48" alt="lucaszhu-hue"/></a>
+<a href="https://github.com/skint007"><img src="https://avatars.githubusercontent.com/u/37035851?v=4&s=48" width="48" height="48" alt="skint007"/></a>
+<a href="https://github.com/thekbbohara"><img src="https://avatars.githubusercontent.com/u/133592644?v=4&s=48" width="48" height="48" alt="thekbbohara"/></a>
+
+<!-- contributors:end -->

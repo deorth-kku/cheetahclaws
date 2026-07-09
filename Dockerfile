@@ -34,6 +34,13 @@ COPY --chown=cheetah:cheetah . .
 # the source tree.
 RUN pip install --no-cache-dir -e '.[web]'
 
+# Pre-create the data + workspace dirs owned by cheetah *before* dropping to
+# the non-root user. Otherwise the anonymous volume for .cheetahclaws (and the
+# WORKDIR-created /workspace) default to root ownership, and cheetah can't
+# write them — first run dies with PermissionError creating sessions/.
+RUN mkdir -p /home/cheetah/.cheetahclaws /workspace \
+ && chown -R cheetah:cheetah /home/cheetah/.cheetahclaws /workspace
+
 USER cheetah
 
 # Persist config, sessions, history. Mount this in compose to survive
