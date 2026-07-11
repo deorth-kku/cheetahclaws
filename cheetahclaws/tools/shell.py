@@ -125,6 +125,8 @@ def _grep(
 ) -> str:
     use_rg = _has_rg()
     cmd = ["rg" if use_rg else "grep", "--no-heading"]
+    if not use_rg:
+        cmd.append("-r")  # grep needs -r to recurse into directories
     if case_insensitive:
         cmd.append("-i")
     if output_mode == "files_with_matches":
