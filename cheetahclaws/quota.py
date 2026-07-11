@@ -169,14 +169,21 @@ def output_room(session_id: str, config: dict,
     return max(0, min(rooms))
 
 
-def record_usage(session_id: str, model: str, in_tokens: int, out_tokens: int) -> None:
+def record_usage(session_id: str, model: str, in_tokens: int, out_tokens: int,
+                 cache_read_tokens: int = 0, cache_write_tokens: int = 0) -> None:
     """
     Record token usage after a successful API call.
     Updates in-memory session counters and the on-disk daily record.
+
+    Cached tokens count toward budgets too: Anthropic reports them outside
+    input_tokens, but they are real processed input (billed at 0.1x read /
+    1.25x write) — ignoring them would let cached sessions sail past both
+    token and cost caps.
     """
     from cheetahclaws.providers import calc_cost
-    tokens = in_tokens + out_tokens
-    cost   = calc_cost(model, in_tokens, out_tokens)
+    tokens = in_tokens + out_tokens + cache_read_tokens + cache_write_tokens
+    cost   = calc_cost(model, in_tokens, out_tokens,
+                       cache_read_tokens, cache_write_tokens)
 
     with _lock:
         _sess_tokens[session_id] = _sess_tokens.get(session_id, 0) + tokens

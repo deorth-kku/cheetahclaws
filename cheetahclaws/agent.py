@@ -175,6 +175,19 @@ def run(
                 _proj_tokens = (_est_tok(state.messages)
                                 + _est_tok([{"role": "system", "content": system_prompt}]))
                 _proj_cost = _calc_cost(config["model"], _proj_tokens, 0)
+                # Prompt caching bills cache-writes at 1.25x the input rate,
+                # and a full-miss request writes its entire prefix. Reserve
+                # that worst case up front so a permitted call can't overshoot
+                # the cost budget (token projection needs no bump — the
+                # estimate already covers the whole prompt, which the API
+                # merely splits into input/cache_read/cache_write).
+                # is_prompt_cache_active mirrors what stream_anthropic will
+                # really send: once a proxy rejection disables the endpoint,
+                # requests go out raw and the premium must not be reserved.
+                from cheetahclaws.providers import is_prompt_cache_active as _pc_active
+                if (_pc_active(config)
+                        and detect_provider(config.get("model", "")) == "anthropic"):
+                    _proj_cost *= 1.25
             except Exception:
                 _proj_tokens, _proj_cost = 0, 0.0
         try:
@@ -222,6 +235,8 @@ def run(
                         _quota.record_usage(
                             session_id, config["model"],
                             event.in_tokens, event.out_tokens,
+                            cache_read_tokens=getattr(event, "cache_read_tokens", 0),
+                            cache_write_tokens=getattr(event, "cache_write_tokens", 0),
                         )
                 break  # success — exit retry loop
 

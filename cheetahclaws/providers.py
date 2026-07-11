@@ -588,9 +588,15 @@ def get_api_key(provider_name: str, config: dict) -> str:
     return prov.get("api_key", "")
 
 
-def calc_cost(model: str, in_tok: int, out_tok: int) -> float:
+def calc_cost(model: str, in_tok: int, out_tok: int,
+              cache_read_tok: int = 0, cache_write_tok: int = 0) -> float:
+    """Estimate USD cost. Anthropic reports cached tokens separately from
+    input_tokens, priced at 0.1x (read) / 1.25x (write) of the input rate —
+    omitting them would silently under-report spend once prompt caching is
+    active."""
     ic, oc = COSTS.get(bare_model(model), (0.0, 0.0))
-    return (in_tok * ic + out_tok * oc) / 1_000_000
+    cache = (cache_read_tok * 0.1 + cache_write_tok * 1.25) * ic
+    return (in_tok * ic + out_tok * oc + cache) / 1_000_000
 
 
 # ── Native tool-call format interceptors ──────────────────────────────────
@@ -1083,6 +1089,90 @@ def _release_anthropic_client(api_key: str, base_url: str) -> None:
         _close_quietly(stale)
 
 
+# ── Anthropic prompt caching ───────────────────────────────────────────────
+# cache_control breakpoints let Anthropic reuse the shared request prefix
+# (tools → system → history) across the tool loop's sequential calls: reads
+# bill at 0.1x input price, writes at 1.25x, so caching pays off from the
+# second call on any shared prefix (break-even hit-rate ≈ 22%). Three
+# breakpoints of the API's maximum four are used; annotation is strictly
+# copy-on-write because tool_schemas aliases the live registry dicts and
+# messages aliases the neutral session history.
+
+_CACHE_EPHEMERAL = {"type": "ephemeral"}
+
+# Endpoints whose proxy rejected cache_control with a 400 — disabled for the
+# rest of the process so a strict shim degrades to one failed call, not a loop.
+_cache_control_disabled: set[str] = set()
+
+
+def is_prompt_cache_active(config: dict) -> bool:
+    """True when the next Anthropic request will actually carry cache_control.
+
+    Single source of truth shared by stream_anthropic (whether to annotate)
+    and the agent's quota projection (whether to reserve the 1.25x
+    cache-write premium): once a proxy rejection disables an endpoint,
+    requests go out raw, and reserving the premium would wrongly pause a
+    budget that the real request fits within.
+    """
+    if not config.get("prompt_cache", True):
+        return False
+    base_url = config.get("anthropic_endpoint") or "https://api.anthropic.com"
+    return base_url not in _cache_control_disabled
+
+
+def _is_cache_control_rejection(e: Exception) -> bool:
+    """True only for a schema-level rejection of the cache_control field.
+
+    Requires BOTH the field name and a 400/invalid-request signal, so a
+    transient error whose message merely mentions cache_control (e.g. a
+    connection reset mid-request) doesn't permanently disable caching for
+    the endpoint — those errors belong to the agent-level retry loop.
+    """
+    msg = str(e).lower()
+    if "cache_control" not in msg:
+        return False
+    if getattr(e, "status_code", None) == 400:
+        return True
+    return ("400" in msg
+            or "invalid_request" in msg
+            or "bad request" in msg
+            or "unexpected field" in msg)
+
+
+def _apply_anthropic_cache_control(kwargs: dict) -> dict:
+    """Return a copy of the request kwargs with ≤3 cache_control breakpoints:
+    last tool schema, system block, last content block of the final message.
+    Never mutates the input structures. Unexpected shapes skip their
+    breakpoint rather than raise."""
+    out = dict(kwargs)
+
+    tools = out.get("tools")
+    if tools:
+        out["tools"] = [*tools[:-1],
+                        {**tools[-1], "cache_control": dict(_CACHE_EPHEMERAL)}]
+
+    system = out.get("system")
+    if isinstance(system, str) and system:
+        out["system"] = [{"type": "text", "text": system,
+                          "cache_control": dict(_CACHE_EPHEMERAL)}]
+
+    msgs = out.get("messages")
+    if msgs:
+        last = msgs[-1]
+        content = last.get("content")
+        if isinstance(content, str) and content:
+            new_last = {**last, "content": [
+                {"type": "text", "text": content,
+                 "cache_control": dict(_CACHE_EPHEMERAL)}]}
+            out["messages"] = [*msgs[:-1], new_last]
+        elif isinstance(content, list) and content and isinstance(content[-1], dict):
+            new_block = {**content[-1], "cache_control": dict(_CACHE_EPHEMERAL)}
+            new_last = {**last, "content": [*content[:-1], new_block]}
+            out["messages"] = [*msgs[:-1], new_last]
+
+    return out
+
+
 def stream_anthropic(
     api_key: str,
     model: str,
@@ -1116,39 +1206,66 @@ def stream_anthropic(
             "budget_tokens": config.get("thinking_budget", 10000),
         }
 
-    tool_calls = []
-    text       = ""
+    use_cache = is_prompt_cache_active(config)
+    attempts = ([_apply_anthropic_cache_control(kwargs), kwargs]
+                if use_cache else [kwargs])
 
     try:
-        with client.messages.stream(**kwargs) as stream:
-            for event in stream:
-                etype = getattr(event, "type", None)
-                if etype == "content_block_delta":
-                    delta = event.delta
-                    dtype = getattr(delta, "type", None)
-                    if dtype == "text_delta":
-                        text += delta.text
-                        yield TextChunk(delta.text)
-                    elif dtype == "thinking_delta":
-                        yield ThinkingChunk(delta.thinking)
+        for attempt_idx, call_kwargs in enumerate(attempts):
+            tool_calls = []
+            text       = ""
+            yielded    = False
 
-            final = stream.get_final_message()
-            for block in final.content:
-                if block.type == "tool_use":
-                    tool_calls.append({
-                        "id":    block.id,
-                        "name":  block.name,
-                        "input": block.input,
-                    })
+            try:
+                with client.messages.stream(**call_kwargs) as stream:
+                    for event in stream:
+                        etype = getattr(event, "type", None)
+                        if etype == "content_block_delta":
+                            delta = event.delta
+                            dtype = getattr(delta, "type", None)
+                            if dtype == "text_delta":
+                                text += delta.text
+                                yielded = True
+                                yield TextChunk(delta.text)
+                            elif dtype == "thinking_delta":
+                                yielded = True
+                                yield ThinkingChunk(delta.thinking)
 
-            cache_r, cache_w = _anthropic_cache_tokens(final.usage)
-            yield AssistantTurn(
-                text, tool_calls,
-                final.usage.input_tokens,
-                final.usage.output_tokens,
-                cache_read_tokens=cache_r,
-                cache_write_tokens=cache_w,
-            )
+                    final = stream.get_final_message()
+                    for block in final.content:
+                        if block.type == "tool_use":
+                            tool_calls.append({
+                                "id":    block.id,
+                                "name":  block.name,
+                                "input": block.input,
+                            })
+
+                    cache_r, cache_w = _anthropic_cache_tokens(final.usage)
+                    yield AssistantTurn(
+                        text, tool_calls,
+                        final.usage.input_tokens,
+                        final.usage.output_tokens,
+                        cache_read_tokens=cache_r,
+                        cache_write_tokens=cache_w,
+                    )
+                return
+
+            except Exception as e:
+                # A proxy that doesn't understand cache_control rejects the
+                # request up front (400 naming the field, before any event is
+                # streamed). Retry once without breakpoints and disable caching
+                # for this endpoint so subsequent calls skip the failed attempt.
+                # Never retry after events were yielded — that would duplicate
+                # streamed text.
+                if (attempt_idx == 0 and len(attempts) > 1 and not yielded
+                        and _is_cache_control_rejection(e)):
+                    _cache_control_disabled.add(base_url)
+                    from cheetahclaws import logging_utils as _log
+                    _log.warn("prompt_cache_rejected",
+                              endpoint=base_url,
+                              error=str(e)[:200])
+                    continue
+                raise
     finally:
         # Paired with _lease_anthropic_client above; runs when the generator
         # finishes, raises, or is abandoned, so eviction can trust the count.

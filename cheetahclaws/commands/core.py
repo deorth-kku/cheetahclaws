@@ -214,11 +214,17 @@ def cmd_context(_args: str, state, config) -> bool:
 
 def cmd_cost(_args: str, state, config) -> bool:
     from cheetahclaws.config import calc_cost
+    cache_read  = getattr(state, "total_cache_read_tokens", 0)
+    cache_write = getattr(state, "total_cache_write_tokens", 0)
     cost = calc_cost(config["model"],
                      state.total_input_tokens,
-                     state.total_output_tokens)
+                     state.total_output_tokens,
+                     cache_read, cache_write)
     info(f"Input tokens:  {state.total_input_tokens:,}")
     info(f"Output tokens: {state.total_output_tokens:,}")
+    if cache_read or cache_write:
+        info(f"Cache read:    {cache_read:,} tokens (0.1x input rate)")
+        info(f"Cache write:   {cache_write:,} tokens (1.25x input rate)")
     info(f"Est. cost:     ${cost:.4f} USD")
     return True
 

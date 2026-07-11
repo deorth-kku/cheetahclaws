@@ -65,6 +65,16 @@ DEFAULTS = {
     # log_file: absolute path or null.  null → stderr (only warn/error visible
     #   at default level).  Point to a file in production for persistent logs.
     "log_file": None,
+    # ── Prompt caching (Anthropic) ─────────────────────────────────────────
+    # prompt_cache: mark cache_control breakpoints on Anthropic requests so
+    #   the provider's prompt cache activates (cache read = 0.1x input price,
+    #   cache write = 1.25x; within-turn tool loops re-send an identical
+    #   prefix 5-50 times, so this is a large input-cost/latency win).
+    #   Escape hatch: set to false when a custom anthropic_endpoint proxy
+    #   rejects cache_control fields (a 400 naming cache_control also
+    #   auto-disables it for the rest of the process). Other providers
+    #   ignore this flag — their caching is implicit server-side.
+    "prompt_cache": True,
     # ── Circuit breaker ────────────────────────────────────────────────────
     # circuit_failure_threshold: consecutive failures (in window) to trip open.
     "circuit_failure_threshold": 5,
@@ -184,6 +194,7 @@ def has_api_key(cfg: dict) -> bool:
     return bool(key)
 
 
-def calc_cost(model: str, in_tokens: int, out_tokens: int) -> float:
+def calc_cost(model: str, in_tokens: int, out_tokens: int,
+              cache_read_tokens: int = 0, cache_write_tokens: int = 0) -> float:
     from cheetahclaws.providers import calc_cost as _cc
-    return _cc(model, in_tokens, out_tokens)
+    return _cc(model, in_tokens, out_tokens, cache_read_tokens, cache_write_tokens)
