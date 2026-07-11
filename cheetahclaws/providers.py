@@ -1089,13 +1089,13 @@ def messages_to_openai(messages: list, ollama_native_images: bool = False) -> li
                     if tc.get("extra_content"):
                         tc_msg["extra_content"] = tc["extra_content"]
                     msg["tool_calls"].append(tc_msg)
-                # DeepSeek v4 spec: when an assistant turn carries tool_calls,
-                # its `reasoning_content` must be echoed back on subsequent
-                # requests.  Benign for other OpenAI-compat providers — they
-                # ignore unknown fields.
-                rc = m.get("reasoning_content")
-                if rc:
-                    msg["reasoning_content"] = rc
+            # DeepSeek v4 spec: when an assistant turn carries tool_calls,
+            # its `reasoning_content` must be echoed back on subsequent
+            # requests.  Benign for other OpenAI-compat providers — they
+            # ignore unknown fields.
+            rc = m.get("reasoning_content")
+            if rc:
+                msg["reasoning_content"] = rc
             result.append(msg)
 
         elif role == "tool":

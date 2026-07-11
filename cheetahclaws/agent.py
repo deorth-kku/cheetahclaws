@@ -342,7 +342,7 @@ def run(
         # subsequent requests when the turn contains tool_calls.  Storing it
         # on the neutral history lets messages_to_openai pass it through.
         _rc = getattr(assistant_turn, "reasoning_content", "")
-        if _rc and assistant_turn.tool_calls:
+        if _rc:
             _assistant_msg["reasoning_content"] = _rc
         state.messages.append(_assistant_msg)
 
