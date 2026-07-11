@@ -484,7 +484,6 @@ def _fetch_custom_model_limit(base_url: str, model: str, api_key: str) -> int | 
     try:
         data=_get_models_info(base_url,api_key=api_key)
         model_entry = None
-        bare=bare_model(model)
         for entry in data:
             mid = entry.get("id", "")
             # vLLM: max_model_len or context_window
@@ -503,7 +502,7 @@ def _fetch_custom_model_limit(base_url: str, model: str, api_key: str) -> int | 
             if mid == bare:
                 model_entry = entry
         # ── llama.cpp auto-load for requested model ───────────────
-        if model != "default" and type(model_entry) == dict :
+        if bare != "default" and type(model_entry) == dict :
             if model_entry.get("owned_by", "") == "llamacpp":
                 status_value = model_entry.get("status", {}).get("value", "")
                 match status_value:
@@ -514,14 +513,14 @@ def _fetch_custom_model_limit(base_url: str, model: str, api_key: str) -> int | 
                     case "loaded":
                         pass
                     case _:
-                        info(f"Model '{model}' status: '{status_value}'")
-        elif model != "default" and model_entry is None:
-            warn(f"Model '{model}' not found on custom api server at {base_url}")
+                        info(f"Model '{bare}' status: '{status_value}'")
+        elif bare != "default" and model_entry is None:
+            warn(f"Model '{bare}' not found on custom api server at {base_url}")
         # "default" → use first model's limit
-        if model == "default" and cache:
+        if bare == "default" and cache:
             result = next(iter(cache.values()))
         else:
-            result = cache.get(model)
+            result = cache.get(bare)
         # Backfill provider-level default with the most conservative value seen.
         # Compaction reads PROVIDERS[provider]['context_limit'] without knowing
         # base_url, so this makes the threshold see the real limit.
@@ -1520,7 +1519,10 @@ def stream_openai_compat(
         # "auto" requires vLLM --enable-auto-tool-choice; omit if server doesn't support it
         if not config.get("disable_tool_choice"):
             kwargs["tool_choice"] = "auto"
-    _prov = detect_provider(model)
+    
+    # the model from args is bare model now. use config model to detect provider
+    conf_model=config.get("model") or model
+    _prov = detect_provider(conf_model)
 
     # DeepSeek v4: thinking is ON by default and controlled via extra_body.
     # `thinking` is tri-state in DEFAULTS (config.py): None = unset (let
