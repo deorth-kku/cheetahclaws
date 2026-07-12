@@ -231,6 +231,8 @@ class ChatSession:
         self._agent_state = None  # type: ignore[assignment]
         self._agent_thread: Optional[threading.Thread] = None
         self._busy = threading.Event()
+        # Stop signal — set by request_stop() (Stop button / WS "stop" msg).
+        self._cancelled = threading.Event()
 
         # Message history for UI replay on reconnect (hydrated from DB)
         self.messages: list[dict] = (_db.repo.get_messages(self.session_id)
@@ -362,6 +364,7 @@ class ChatSession:
 
         def _run():
             self._busy.set()
+            self._cancelled.clear()
             try:
                 self._run_agent(prompt)
             except Exception as exc:
@@ -516,6 +519,7 @@ class ChatSession:
             def _run_long():
                 _target_thread_id[0] = threading.current_thread().ident
                 self._busy.set()
+                self._cancelled.clear()
                 from cheetahclaws import runtime
                 ctx = runtime.get_session_ctx(self.session_id)
                 ctx.in_web_turn = True
@@ -731,7 +735,7 @@ class ChatSession:
 
         try:
             for event in run(prompt, self._agent_state, self.config,
-                             system_prompt):
+                             system_prompt, cancel_check=self._cancelled.is_set):
                 if isinstance(event, TextChunk):
                     text_chunks.append(event.text)
                     self._broadcast(ChatEvent("text_chunk",
@@ -831,6 +835,15 @@ class ChatSession:
         if evt:
             ctx.web_input_value = "y" if granted else "n"
             evt.set()
+
+    def request_stop(self):
+        """Raise the cancel flag so the running agent loop aborts.
+
+        The `run()` generator checks cancel_check() at the top of each turn,
+        so the agent stops after the current turn finishes (mirrors CLI
+        Ctrl+C semantics: in-flight tool calls complete, the turn ends).
+        """
+        self._cancelled.set()
 
     # ── Introspection ──────────────────────────────────────────────────
 

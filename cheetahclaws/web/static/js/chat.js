@@ -511,5 +511,54 @@ class ChatApp {
     const txt = document.getElementById('status-text');
     dot.className = 'dot' + (state==='disconnected'?' off':'') + (state==='running'?' busy':'');
     txt.textContent = state;
+    this.setRunning(state === 'running');
+  }
+
+  // ── Send / Stop toggle ───────────────────────────────────────────
+
+  setRunning(running) {
+    const btn = document.getElementById('send-btn');
+    if (!btn) return;
+    if (running) {
+      btn.textContent = 'Stop';
+      btn.classList.add('stop');
+      btn.dataset.mode = 'stop';
+    } else {
+      btn.textContent = 'Send';
+      btn.classList.remove('stop');
+      btn.dataset.mode = 'send';
+    }
+  }
+
+  onSendOrStop() {
+    const btn = document.getElementById('send-btn');
+    if (btn && btn.dataset.mode === 'stop') {
+      this.stop();
+    } else {
+      this.send();
+    }
+  }
+
+  stop() {
+    this.setRunning(false);
+    this._showActivity('', 'Stopping', 'requesting stop...');
+    const doStop = () => {
+      if (this.ws && this.ws.readyState === 1) {
+        this.ws.send(JSON.stringify({type: 'stop'}));
+      } else {
+        this._fetchAuth(`/api/stop?session_id=${encodeURIComponent(this.sessionId || '')}`, {
+          method: 'POST',
+        }).catch(() => {});
+      }
+    };
+    if (this._authed) {
+      if (this.ws && this.ws.readyState === 1) {
+        doStop();
+      } else {
+        this._ensureWS().then(doStop);
+      }
+    } else {
+      doStop();
+    }
   }
 }

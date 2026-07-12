@@ -964,6 +964,8 @@ def _handle_chat_websocket(sock: socket.socket, extra: bytes,
                         if msg_type == "approve":
                             chat_session.approve_permission(
                                 obj.get("granted", False))
+                        elif msg_type == "stop":
+                            chat_session.request_stop()
                         elif msg_type == "prompt":
                             chat_session.submit_prompt(
                                 obj.get("prompt", ""))
@@ -1684,6 +1686,26 @@ def _handle_connection(sock: socket.socket, addr: tuple) -> None:
             chat_sess = get_chat_session(sid, uid, load_config())
             if chat_sess:
                 chat_sess.approve_permission(granted)
+                _send_json(sock, {"ok": True}, request_origin=origin)
+            else:
+                _send_http(sock, "404 Not Found", "text/plain",
+                           b"session not found", request_origin=origin)
+            sock.close()
+            return
+
+        # ── POST /api/stop — request the running agent to abort ─────
+        if path == "/api/stop" and method == "POST":
+            uid = _require_user(sock, cookie, origin)
+            if uid is None:
+                return
+            from cheetahclaws.web.api import get_chat_session
+            from cheetahclaws.config import load_config
+            sid = body_json.get("session_id", "") or \
+                  (query.split("sid=")[1].split("&")[0]
+                   if "sid=" in query else "")
+            chat_sess = get_chat_session(sid, uid, load_config())
+            if chat_sess:
+                chat_sess.request_stop()
                 _send_json(sock, {"ok": True}, request_origin=origin)
             else:
                 _send_http(sock, "404 Not Found", "text/plain",

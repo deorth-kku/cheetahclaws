@@ -660,7 +660,7 @@ body.resizing { cursor:col-resize; user-select:none; }
       <button id="attach-btn" title="Attach image" onclick="app.pickImage()">📎</button>
       <input id="image-input" type="file" accept="image/png,image/jpeg" hidden>
       <textarea id="prompt-input" rows="1" placeholder="Type a message... (Shift+Enter for newline)"></textarea>
-      <button id="send-btn" onclick="app.send()">Send</button>
+      <button id="send-btn" onclick="app.onSendOrStop()">Send</button>
     </div>
   </div>
 </div>

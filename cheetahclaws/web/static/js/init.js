@@ -10,7 +10,7 @@ const promptInput = document.getElementById('prompt-input');
 promptInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
-    app.send();
+    app.onSendOrStop();
   }
 });
 promptInput.addEventListener('input', () => {
