@@ -649,7 +649,7 @@ Object.assign(ChatApp.prototype, {
         else if (m.role === 'assistant') {
           this._addAssistantBubble(m.content);
           if (m.tool_calls) m.tool_calls.forEach(tc => {
-            this._addToolCard(tc.name, tc.inputs, tc.status, tc.result);
+            this._addToolCard(tc.name, tc.inputs, tc.status, tc.result, tc.tool_id);
           });
         }
       });

@@ -38,14 +38,16 @@ class AgentState:
 
 @dataclass
 class ToolStart:
-    name:   str
-    inputs: dict
+    name:    str
+    inputs:  dict
+    tool_id: str = ""   # unique per call (tc["id"]); "" when unknown
 
 @dataclass
 class ToolEnd:
     name:      str
     result:    str
     permitted: bool = True
+    tool_id:   str = ""
 
 @dataclass
 class TurnDone:
@@ -511,7 +513,7 @@ def run(
         if parallel_batch:
             from concurrent.futures import ThreadPoolExecutor
             for tc in parallel_batch:
-                yield ToolStart(tc["name"], tc["input"])
+                yield ToolStart(tc["name"], tc["input"], tc["id"])
             with ThreadPoolExecutor(max_workers=min(len(parallel_batch), 8)) as pool:
                 futures = {pool.submit(_exec_one, tc): tc for tc in parallel_batch}
                 for future in futures:
@@ -524,7 +526,7 @@ def run(
         # Run sequential batch one by one
         for tc in sequential_batch:
             if tc["id"] not in _redundant_tcs:
-                yield ToolStart(tc["name"], tc["input"])
+                yield ToolStart(tc["name"], tc["input"], tc["id"])
                 _log.debug("tool_start", session_id=session_id,
                            tool=tc["name"], input_keys=list(tc["input"].keys()))
             else:
@@ -545,7 +547,7 @@ def run(
             # gets appended to state.messages so the next API request has
             # a valid tool_calls ↔ tool_response pairing.
             if tc["id"] not in _redundant_tcs:
-                yield ToolEnd(tc["name"], result, permitted)
+                yield ToolEnd(tc["name"], result, permitted, tc["id"])
             # Auto-fanout: when a single tool result is too big to fit in the
             # active model's context window, split it across parallel sub-LLM
             # summaries instead of letting the next API call overflow.  Only

@@ -746,10 +746,12 @@ class ChatSession:
                         "name": event.name,
                         "inputs": event.inputs,
                         "status": "running",
+                        "tool_id": event.tool_id,
                     })
                     self._broadcast(ChatEvent("tool_start", {
                         "name": event.name,
                         "inputs": event.inputs,
+                        "tool_id": event.tool_id,
                     }))
 
                 elif isinstance(event, PermissionRequest):
@@ -778,14 +780,24 @@ class ChatSession:
 
                 elif isinstance(event, ToolEnd):
                     for tc in reversed(tool_calls):
-                        if tc["name"] == event.name and tc["status"] == "running":
-                            tc["status"] = "done" if event.permitted else "denied"
-                            tc["result"] = event.result[:2000] if event.result else ""
-                            break
+                        if tc["status"] != "running":
+                            continue
+                        # Prefer exact per-call id; fall back to name so old
+                        # events without an id still match (e.g. deduped entries).
+                        if event.tool_id:
+                            if tc.get("tool_id") != event.tool_id:
+                                continue
+                        else:
+                            if tc["name"] != event.name:
+                                continue
+                        tc["status"] = "done" if event.permitted else "denied"
+                        tc["result"] = event.result[:2000] if event.result else ""
+                        break
                     self._broadcast(ChatEvent("tool_end", {
                         "name": event.name,
                         "result": event.result[:2000] if event.result else "",
                         "permitted": event.permitted,
+                        "tool_id": event.tool_id,
                     }))
 
                 elif isinstance(event, TurnDone):

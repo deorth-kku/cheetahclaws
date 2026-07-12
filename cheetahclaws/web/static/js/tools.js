@@ -3,7 +3,7 @@
 
 Object.assign(ChatApp.prototype, {
 
-  _addToolCard(name, inputs, status, result) {
+  _addToolCard(name, inputs, status, result, toolId) {
     const id = 'tool-' + (this._toolCounter++);
     const card = document.createElement('details');
     card.className = 'tool-card'
@@ -24,13 +24,19 @@ Object.assign(ChatApp.prototype, {
         ${result ? `<div class="label">Output</div><pre>${this._esc(result)}</pre>` : ''}
       </div>`;
     document.getElementById('messages').appendChild(card);
-    this._toolCards[name + ':' + (this._toolCounter - 1)] = card;
-    this._toolCards['__last__' + name] = card;
+    // Key by unique per-call id when available so multiple calls of the same
+    // tool (e.g. parallel Read) each get their own completed card.  Fall back
+    // to a per-(name,counter) key plus a name pointer for calls without an id.
+    const key = toolId ? ('__id__' + toolId)
+                       : ('__n__' + name + ':' + (this._toolCounter - 1));
+    this._toolCards[key] = card;
+    if (!toolId) this._toolCards['__last__' + name] = card;
     this._scrollBottom();
   },
 
-  _completeToolCard(name, result, permitted) {
-    const card = this._toolCards['__last__' + name];
+  _completeToolCard(name, result, permitted, toolId) {
+    const card = toolId ? this._toolCards['__id__' + toolId]
+                        : this._toolCards['__last__' + name];
     if (!card) return;
     const status = permitted ? 'done' : 'denied';
     card.className = 'tool-card ' + status;

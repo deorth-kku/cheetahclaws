@@ -219,7 +219,7 @@ class ChatApp {
           if (last && last.role === 'assistant') {
             this._addAssistantBubble(last.content);
             if (last.tool_calls) last.tool_calls.forEach(tc => {
-              this._addToolCard(tc.name, tc.inputs, tc.status, tc.result);
+              this._addToolCard(tc.name, tc.inputs, tc.status, tc.result, tc.tool_id);
             });
           }
           this.loadSessions();
@@ -375,12 +375,12 @@ class ChatApp {
         break;
       case 'tool_start':
         this._removeActivity();
-        this._addToolCard(evt.data.name, evt.data.inputs, 'running');
+        this._addToolCard(evt.data.name, evt.data.inputs, 'running', '', evt.data.tool_id);
         this._showActivity('tool-running', `Running ${evt.data.name}`, '');
         break;
       case 'tool_end':
         this._removeActivity();
-        this._completeToolCard(evt.data.name, evt.data.result, evt.data.permitted);
+        this._completeToolCard(evt.data.name, evt.data.result, evt.data.permitted, evt.data.tool_id);
         break;
       case 'permission_request':
         this._removeActivity();
