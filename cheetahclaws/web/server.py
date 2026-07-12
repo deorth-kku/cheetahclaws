@@ -1502,6 +1502,61 @@ def _handle_connection(sock: socket.socket, addr: tuple) -> None:
             sock.close()
             return
 
+        # ── POST /api/upload-image — attach an image to the next prompt ──
+        if path == "/api/upload-image" and method == "POST":
+            uid = _require_user(sock, cookie, origin)
+            if uid is None:
+                return
+            sid = body_json.get("session_id", "")
+            image = body_json.get("image", "")
+            if not sid:
+                _send_json(sock, {"error": "session_id required"},
+                           request_origin=origin)
+                sock.close()
+                return
+            if not image or not isinstance(image, str):
+                _send_json(sock, {"error": "image (base64 string) required"},
+                           request_origin=origin)
+                sock.close()
+                return
+            # Accept data URLs and bare base64; strip the prefix either way.
+            if image.startswith("data:"):
+                comma = image.find(",")
+                if comma == -1:
+                    _send_json(sock, {"error": "malformed data URL"},
+                               request_origin=origin)
+                    sock.close()
+                    return
+                image = image[comma + 1:]
+            try:
+                raw = base64.b64decode(image, validate=True)
+            except Exception:
+                _send_json(sock, {"error": "image must be valid base64"},
+                           request_origin=origin)
+                sock.close()
+                return
+            # Validate PNG / JPEG magic bytes (and a sane size cap).
+            is_png = raw[:8] == b"\x89PNG\r\n\x1a\n"
+            is_jpeg = raw[:3] == b"\xff\xd8\xff"
+            if not (is_png or is_jpeg):
+                _send_json(sock,
+                           {"error": "only PNG or JPEG images are supported"},
+                           request_origin=origin)
+                sock.close()
+                return
+            if len(raw) > 20 * 1024 * 1024:
+                _send_json(sock, {"error": "image too large (max 20 MB)"},
+                           request_origin=origin)
+                sock.close()
+                return
+            from cheetahclaws import runtime
+            sctx = runtime.get_session_ctx(sid)
+            sctx.pending_image = image
+            _send_json(sock, {"ok": True, "session_id": sid,
+                              "size": len(raw)}, request_origin=origin)
+            sock.close()
+            return
+
         # ── POST /api/prompt — submit prompt to chat session ────────
         if path == "/api/prompt" and method == "POST":
             uid = _require_user(sock, cookie, origin)

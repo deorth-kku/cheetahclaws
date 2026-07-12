@@ -18,6 +18,29 @@ promptInput.addEventListener('input', () => {
   promptInput.style.height = Math.min(promptInput.scrollHeight, 200) + 'px';
 });
 
+/* ── Image attachment ───────────────────────────────────────────── */
+const imageInput = document.getElementById('image-input');
+if (imageInput) {
+  imageInput.addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (f) app._onImagePicked(f);
+    e.target.value = '';
+  });
+}
+
+/* Paste an image from clipboard directly into the composer. */
+promptInput.addEventListener('paste', (e) => {
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (const it of items) {
+    if (it.type && it.type.startsWith('image/')) {
+      const f = it.getAsFile();
+      if (f) { app._onImagePicked(f); e.preventDefault(); }
+      break;
+    }
+  }
+});
+
 document.getElementById('main').addEventListener('click', () => {
   document.getElementById('sidebar').classList.remove('open');
 });

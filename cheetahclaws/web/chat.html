@@ -462,6 +462,31 @@ body.resizing { cursor:col-resize; user-select:none; }
 #send-btn:hover { transform:scale(1.04); }
 #send-btn:disabled { background:var(--text-muted); cursor:not-allowed; transform:none; }
 #send-btn.stop { background:var(--red); }
+#attach-btn {
+  background:var(--panel); color:var(--text-dim); border:1px solid var(--border);
+  border-radius:var(--radius); font-size:18px; line-height:1; cursor:pointer;
+  min-height:42px; min-width:42px; transition:background .15s,color .15s;
+}
+#attach-btn:hover { color:var(--accent); background:var(--accent-dim); }
+#attach-preview { padding:0 0 8px; }
+#attach-preview:empty { display:none; }
+#attach-preview .thumb {
+  display:inline-flex; align-items:center; gap:8px; position:relative;
+  background:var(--panel); border:1px solid var(--border); border-radius:8px;
+  padding:6px 10px 6px 6px; max-width:240px;
+}
+#attach-preview .thumb img {
+  width:40px; height:40px; object-fit:cover; border-radius:5px; display:block;
+}
+#attach-preview .thumb .name {
+  font-size:12px; color:var(--text-dim); overflow:hidden; text-overflow:ellipsis;
+  white-space:nowrap; max-width:150px;
+}
+#attach-preview .thumb .rm {
+  background:none; border:none; color:var(--text-muted); cursor:pointer;
+  font-size:16px; line-height:1; padding:0 2px;
+}
+#attach-preview .thumb .rm:hover { color:var(--red); }
 
 /* ── Settings panel ───────────────────────────────────────────── */
 #settings-panel {
@@ -630,7 +655,10 @@ body.resizing { cursor:col-resize; user-select:none; }
     </div>
   </div>
   <div id="input-area">
+    <div id="attach-preview"></div>
     <div id="input-row">
+      <button id="attach-btn" title="Attach image" onclick="app.pickImage()">📎</button>
+      <input id="image-input" type="file" accept="image/png,image/jpeg" hidden>
       <textarea id="prompt-input" rows="1" placeholder="Type a message... (Shift+Enter for newline)"></textarea>
       <button id="send-btn" onclick="app.send()">Send</button>
     </div>

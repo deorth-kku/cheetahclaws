@@ -22,6 +22,67 @@ class ChatApp {
     this._authMode = 'login';   // or 'register'
     this._sessions = [];        // last fetched list (for search filter)
     this._user = null;
+    this._pendingImage = null;  // {name, dataUrl, b64} awaiting next prompt
+  }
+
+  // ── Image attachment ───────────────────────────────────────────
+
+  pickImage() {
+    const input = document.getElementById('image-input');
+    if (input) input.click();
+  }
+
+  _onImagePicked(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result;
+      const b64 = dataUrl.split(',')[1] || '';
+      this._pendingImage = {name: file.name, dataUrl, b64};
+      this._renderAttachPreview();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  _renderAttachPreview() {
+    const el = document.getElementById('attach-preview');
+    if (!el) return;
+    el.innerHTML = '';
+    if (!this._pendingImage) return;
+    const chip = document.createElement('div');
+    chip.className = 'thumb';
+    chip.innerHTML =
+      `<img src="${this._pendingImage.dataUrl}">` +
+      `<span class="name"></span>` +
+      `<button class="rm" title="Remove">&times;</button>`;
+    chip.querySelector('.name').textContent = this._pendingImage.name;
+    chip.querySelector('.rm').onclick = () => {
+      this._pendingImage = null;
+      this._renderAttachPreview();
+    };
+    el.appendChild(chip);
+  }
+
+  async _uploadPendingImage() {
+    if (!this._pendingImage) return;
+    const body = JSON.stringify({
+      session_id: this.sessionId || '',
+      image: this._pendingImage.b64,
+    });
+    const r = await this._fetchAuth('/api/upload-image', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body,
+    });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      this._addError(data.error || 'Failed to upload image');
+      throw new Error('image upload failed');
+    }
+    const img = this._pendingImage;
+    this._pendingImage = null;
+    this._renderAttachPreview();
+    return img;
   }
 
   // ── Send prompt ─────────────────────────────────────────────────
@@ -29,11 +90,14 @@ class ChatApp {
   async send() {
     const input = document.getElementById('prompt-input');
     const text = input.value.trim();
-    if (!text) return;
+    const hasImg = !!this._pendingImage;
+    if (!text && !hasImg) return;
     input.value = '';
     input.style.height = 'auto';
 
     try {
+      // Create the session first (if needed) so an attached image binds to
+      // the real session id — not the empty "" placeholder.
       if (!this.sessionId) {
         const r = await this._fetchAuth('/api/prompt', {
           method: 'POST',
@@ -63,7 +127,18 @@ class ChatApp {
         this.loadSessions();
       }
 
-      this._addUserBubble(text);
+      // Upload any attached image before the prompt so it binds to this turn.
+      let sentImg = null;
+      if (hasImg) {
+        try {
+          sentImg = await this._uploadPendingImage();
+        } catch(e) {
+          input.value = text;
+          return;
+        }
+      }
+
+      this._addUserBubble(text, sentImg);
       this._showActivity('', 'Processing', 'connecting...');
       this._scrollBottom();
 
@@ -358,11 +433,20 @@ class ChatApp {
     this._pendingApproval = false;
   }
 
-  _addUserBubble(text) {
+  _addUserBubble(text, img) {
     const el = document.createElement('div');
     el.className = 'msg user';
     el.innerHTML = `<div class="role-tag">You</div><div class="bubble"></div>`;
-    el.querySelector('.bubble').textContent = text;
+    const bubble = el.querySelector('.bubble');
+    if (img && img.dataUrl) {
+      const imgEl = document.createElement('img');
+      imgEl.src = img.dataUrl;
+      imgEl.style.cssText =
+        'display:block;max-width:240px;max-height:240px;border-radius:8px;' +
+        'margin-bottom:6px;';
+      bubble.appendChild(imgEl);
+    }
+    if (text) bubble.appendChild(document.createTextNode(text));
     document.getElementById('messages').appendChild(el);
     this._scrollBottom();
   }
