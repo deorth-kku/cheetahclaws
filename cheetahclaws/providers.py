@@ -1536,7 +1536,7 @@ def stream_openai_compat(
     if eff:
         kwargs["reasoning_effort"] = eff
        
-    _effective_mt = resolve_max_tokens(config, _prov, model, base_url, api_key)
+    _effective_mt = resolve_max_tokens(config, _prov, conf_model, base_url, api_key)
     if _effective_mt:
         # Further cap by provider-level max_completion_tokens if present
         prov_cap = PROVIDERS.get(_prov, {}).get("max_completion_tokens")
@@ -1545,7 +1545,7 @@ def stream_openai_compat(
         # output never overflows the real context window. Critical for 32k
         # local models (qwen2.5, mistral) where the static cap alone is not
         # enough — input grows turn-by-turn.
-        _ctx_window = get_model_context_window(_prov, model, base_url, api_key)
+        _ctx_window = get_model_context_window(_prov, conf_model, base_url, api_key)
         _ov = context_window_override(config)
         if _ov:
             _ctx_window = _ov
