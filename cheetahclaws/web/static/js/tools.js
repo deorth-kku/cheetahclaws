@@ -153,6 +153,36 @@ Object.assign(ChatApp.prototype, {
     }
   },
 
+  // Read-only variant used when replaying a persisted ask block from history
+  // (e.g. after a page refresh). The agent already received the answer, so
+  // this must NOT be interactive — no buttons/input, no _pendingAsk state.
+  // `answer` (taken from the matching AskUserQuestion tool block's result)
+  // is shown so the card mirrors the live session exactly.
+  _addAskHistory(data) {
+    const options = data.options || [];
+    const optHtml = options.map((o, i) =>
+      `<div style="display:block;width:100%;text-align:left;margin:4px 0;background:var(--surface);
+        border:1px solid var(--border);color:var(--text);border-radius:var(--radius-sm);
+        padding:8px 12px;font-size:13px;font-family:var(--font);opacity:.8;">
+        <span style="color:var(--accent);font-weight:600;margin-right:8px;">${i+1}.</span>
+        ${this._esc(o.label)}</div>`).join('');
+    const answer = (data.answer || '').toString().trim();
+    const answerHtml = answer
+      ? `<div style="margin-top:8px;font-size:13px;color:var(--text);">
+           <span style="color:var(--green);font-weight:600;margin-right:6px;">✓ Answer:</span>
+           <span>${this._esc(answer)}</span></div>`
+      : '';
+    const el = document.createElement('div');
+    el.className = 'ask-card resolved';
+    el.innerHTML = `
+      <div class="ask-hdr">&#10067; Question</div>
+      <div class="ask-q">${this._esc(data.prompt || '')}</div>
+      ${optHtml}
+      ${answerHtml}`;
+    document.getElementById('messages').appendChild(el);
+    this._scrollBottom();
+  },
+
   _answerAsk(value) {
     if (!this._pendingAsk) return;
     const v = (value || '').trim();

@@ -46,6 +46,14 @@ class ChatApp {
     // assistant
     const blocks = m.blocks;
     if (Array.isArray(blocks) && blocks.length) {
+      // Answers to AskUserQuestion live in the matching tool block's result,
+      // which is rendered separately. Collect them so the read-only ask card
+      // (history replay) can show the already-given answer, matching the
+      // live session exactly.
+      const askAnswers = blocks
+        .filter(b => b.type === 'tool' && b.name === 'AskUserQuestion')
+        .map(b => b.result || '');
+      let _ai = 0;
       for (const b of blocks) {
         if (b.type === 'text') {
           if (b.text && b.text.trim()) this._addAssistantBubble(b.text);
@@ -53,10 +61,12 @@ class ChatApp {
           this._addToolCard(b.name, b.inputs, b.status || 'done',
                             b.result || '', b.tool_id);
         } else if (b.type === 'ask') {
-          this._addAskRequest({
+          // History replay (post-refresh): render read-only, never interactive.
+          this._addAskHistory({
             prompt: b.prompt || '',
             options: b.options || null,
             allow_freetext: b.allow_freetext !== false,
+            answer: askAnswers[_ai++],
           });
         }
       }
