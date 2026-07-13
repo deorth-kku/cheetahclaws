@@ -34,6 +34,41 @@ class ChatApp {
     if (input) input.click();
   }
 
+  // Render a persisted message (user or assistant) in order, preserving
+  // interleaving of text / tool / ask blocks. Falls back to the legacy
+  // content + tool_calls shape for rows written before blocks existed.
+  _renderMessage(m) {
+    if (!m) return;
+    if (m.role === 'user') {
+      this._addUserBubble(m.content || '');
+      return;
+    }
+    // assistant
+    const blocks = m.blocks;
+    if (Array.isArray(blocks) && blocks.length) {
+      for (const b of blocks) {
+        if (b.type === 'text') {
+          if (b.text && b.text.trim()) this._addAssistantBubble(b.text);
+        } else if (b.type === 'tool') {
+          this._addToolCard(b.name, b.inputs, b.status || 'done',
+                            b.result || '', b.tool_id);
+        } else if (b.type === 'ask') {
+          this._addAskRequest({
+            prompt: b.prompt || '',
+            options: b.options || null,
+            allow_freetext: b.allow_freetext !== false,
+          });
+        }
+      }
+      return;
+    }
+    // Legacy fallback
+    if (m.content) this._addAssistantBubble(m.content);
+    if (m.tool_calls) m.tool_calls.forEach(tc => {
+      this._addToolCard(tc.name, tc.inputs, tc.status, tc.result, tc.tool_id);
+    });
+  }
+
   _onImagePicked(file) {
     if (!file) return;
     const reader = new FileReader();
@@ -219,10 +254,7 @@ class ChatApp {
           const msgs = data.messages || [];
           const last = msgs[msgs.length - 1];
           if (last && last.role === 'assistant') {
-            this._addAssistantBubble(last.content);
-            if (last.tool_calls) last.tool_calls.forEach(tc => {
-              this._addToolCard(tc.name, tc.inputs, tc.status, tc.result, tc.tool_id);
-            });
+            this._renderMessage(last);
           }
           this.loadSessions();
           if (this.sessionId && (!this.ws || this.ws.readyState !== 1)) {

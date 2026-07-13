@@ -285,6 +285,14 @@ class ChatSession:
             except ValueError:
                 pass
 
+    def _clear_event_buffer(self):
+        """Drop buffered events so a freshly-connecting WS client (e.g. after
+        a page refresh) doesn't replay the previous turn's tool_start /
+        tool_end / ask_request events — they'd duplicate the already-persisted
+        history rendered from the DB."""
+        with self._sub_lock:
+            self._event_buffer.clear()
+
     def _broadcast(self, event: ChatEvent):
         with self._sub_lock:
             # Buffer for late-joining subscribers
@@ -728,6 +736,10 @@ class ChatSession:
 
         text_chunks: list[str] = []
         tool_calls: list[dict] = []
+        # Ordered blocks keep interleaving intact across refreshes:
+        #   {type:"text", text} | {type:"tool", ...} | {type:"ask", ...}
+        blocks: list[dict] = []
+        _cur_block = None  # current text block being accumulated
 
         # Do NOT wire RuntimeContext callbacks — we broadcast from the
         # generator loop below.  Wiring ctx.on_text_chunk etc. would cause
@@ -737,6 +749,21 @@ class ChatSession:
         ctx.on_tool_start = None
         ctx.on_tool_end = None
 
+        # Wrap web_broadcast so AskUserQuestion prompts also become ordered
+        # blocks (at the right interleaved position) for persistence.
+        _orig_web_broadcast = ctx.web_broadcast
+        def _web_broadcast_blocker(event: dict):
+            if event.get("type") == "ask_request":
+                blocks.append({
+                    "type": "ask",
+                    "prompt": event.get("data", {}).get("prompt", ""),
+                    "options": event.get("data", {}).get("options"),
+                    "allow_freetext": event.get("data", {}).get("allow_freetext", True),
+                })
+            if _orig_web_broadcast is not None:
+                _orig_web_broadcast(event)
+        ctx.web_broadcast = _web_broadcast_blocker
+
         try:
             for event in run(prompt, self._agent_state, self.config,
                              system_prompt, cancel_check=self._cancelled.is_set):
@@ -744,18 +771,30 @@ class ChatSession:
                     text_chunks.append(event.text)
                     self._broadcast(ChatEvent("text_chunk",
                                               {"text": event.text}))
+                    # Accumulate into the current text block so contiguous
+                    # text stays merged but tool calls split it into separate
+                    # blocks (preserving interleaving on reload).
+                    if _cur_block is None or _cur_block["type"] != "text":
+                        _cur_block = {"type": "text", "text": ""}
+                        blocks.append(_cur_block)
+                    _cur_block["text"] += event.text
 
                 elif isinstance(event, ThinkingChunk):
                     self._broadcast(ChatEvent("thinking_chunk",
                                               {"text": event.text}))
 
                 elif isinstance(event, ToolStart):
-                    tool_calls.append({
+                    tc_block = {
+                        "type": "tool",
                         "name": event.name,
                         "inputs": event.inputs,
                         "status": "running",
                         "tool_id": event.tool_id,
-                    })
+                        "result": "",
+                    }
+                    blocks.append(tc_block)
+                    _cur_block = tc_block  # next text starts a new block
+                    tool_calls.append(tc_block)
                     self._broadcast(ChatEvent("tool_start", {
                         "name": event.name,
                         "inputs": event.inputs,
@@ -788,7 +827,7 @@ class ChatSession:
 
                 elif isinstance(event, ToolEnd):
                     for tc in reversed(tool_calls):
-                        if tc["status"] != "running":
+                        if tc.get("type") != "tool" or tc["status"] != "running":
                             continue
                         # Prefer exact per-call id; fall back to name so old
                         # events without an id still match (e.g. deduped entries).
@@ -817,9 +856,16 @@ class ChatSession:
             # Store assistant response in history
             final_text = "".join(text_chunks)
             msg: dict = {"role": "assistant", "content": final_text}
-            if tool_calls:
+            # Persist ordered blocks (text/tool/ask) so interleaving survives
+            # a refresh. Drop leading/trailing empty text blocks for cleanliness.
+            _clean_blocks = [b for b in blocks if not (
+                b.get("type") == "text" and not (b.get("text") or "").strip()
+            )]
+            if _clean_blocks:
+                msg["blocks"] = _clean_blocks
+            elif tool_calls:
                 msg["tool_calls"] = tool_calls
-            self._append_msg(msg)
+            self._append_msg(msg, blocks=_clean_blocks or None)
 
         except Exception as exc:
             self._broadcast(ChatEvent("error", {"message": str(exc)}))
@@ -827,9 +873,14 @@ class ChatSession:
             ctx.on_text_chunk = None
             ctx.on_tool_start = None
             ctx.on_tool_end = None
+            ctx.web_broadcast = _orig_web_broadcast
             ctx.in_web_turn = False
             ctx.web_ask_event = None
             ctx.web_ask_value = ""
+            # Clear the replay buffer so a page refresh / session switch
+            # reconnecting via WS doesn't duplicate the just-finished turn's
+            # tool and ask cards (history is already loaded from the DB).
+            self._clear_event_buffer()
 
     # ── Permission approval ────────────────────────────────────────────
 
@@ -867,7 +918,7 @@ class ChatSession:
 
     # ── Introspection ──────────────────────────────────────────────────
 
-    def _append_msg(self, msg: dict):
+    def _append_msg(self, msg: dict, blocks: Optional[list] = None):
         with self._msg_lock:
             self.messages.append(msg)
         # Persist to DB (best-effort; don't break streaming on DB failure)
@@ -878,6 +929,7 @@ class ChatSession:
                 msg.get("role", "system"),
                 msg.get("content", "") or "",
                 msg.get("tool_calls"),
+                blocks=blocks,
             )
             # Keep in-memory title in sync with auto-titling in repo
             sess = _db.repo.get_session(self.session_id, self.user_id)
@@ -1131,11 +1183,32 @@ def export_chat_session_markdown(sid: str, user_id: int) -> Optional[str]:
     lines.append("")
     lines.append("---")
     lines.append("")
+    _import_json = __import__("json")
     for m in msgs:
         role = m.get("role", "?")
         when = _dt.datetime.fromtimestamp(m.get("created_at", 0)).strftime("%H:%M:%S")
         lines.append(f"## {role.title()} · {when}")
         lines.append("")
+        blocks = m.get("blocks")
+        if role == "assistant" and isinstance(blocks, list) and blocks:
+            for b in blocks:
+                if b.get("type") == "text":
+                    if b.get("text"):
+                        lines.append(b["text"])
+                        lines.append("")
+                elif b.get("type") == "tool":
+                    lines.append(f"- **{b.get('name','?')}** "
+                                 f"(status: {b.get('status','?')})")
+                    if b.get("inputs"):
+                        lines.append("  ```json")
+                        lines.append("  " + _import_json.dumps(b["inputs"], indent=2)
+                                     .replace("\n", "\n  "))
+                        lines.append("  ```")
+                    lines.append("")
+                elif b.get("type") == "ask":
+                    lines.append(f"> **Question:** {b.get('prompt','')}")
+                    lines.append("")
+            continue
         lines.append(m.get("content", "") or "_(no content)_")
         if m.get("tool_calls"):
             lines.append("")
@@ -1145,9 +1218,8 @@ def export_chat_session_markdown(sid: str, user_id: int) -> Optional[str]:
                 lines.append(f"- **{tc.get('name','?')}** "
                              f"(status: {tc.get('status','?')})")
                 if tc.get("inputs"):
-                    import json as _j
                     lines.append("  ```json")
-                    lines.append("  " + _j.dumps(tc["inputs"], indent=2)
+                    lines.append("  " + _import_json.dumps(tc["inputs"], indent=2)
                                  .replace("\n", "\n  "))
                     lines.append("  ```")
             lines.append("")

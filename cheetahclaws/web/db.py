@@ -76,6 +76,16 @@ def init_db(db_path: Optional[Path] = None) -> None:
                     "CREATE INDEX IF NOT EXISTS ix_chat_sessions_folder_id"
                     " ON chat_sessions(folder_id)"
                 )
+            # Migration for ordered content blocks (interleaved text/tool/ask).
+            # Additive only — legacy rows keep blocks_json NULL and the
+            # renderer falls back to content + tool_calls_json.
+            msg_cols = {row[1] for row in conn.exec_driver_sql(
+                "PRAGMA table_info(messages)"
+            ).fetchall()}
+            if "blocks_json" not in msg_cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE messages ADD COLUMN blocks_json TEXT"
+                )
         _SessionLocal = sessionmaker(bind=_engine, autoflush=False,
                                      expire_on_commit=False, future=True)
         # Tighten file permissions — the DB now holds password hashes & API keys.
@@ -342,13 +352,15 @@ class repo:
 
     @staticmethod
     def append_message(session_id: str, role: str, content: str,
-                       tool_calls: Optional[list] = None) -> int:
+                       tool_calls: Optional[list] = None,
+                       blocks: Optional[list] = None) -> int:
         with session_scope() as db:
             m = Message(
                 session_id=session_id,
                 role=role,
                 content=content,
                 tool_calls_json=json.dumps(tool_calls) if tool_calls else None,
+                blocks_json=json.dumps(blocks) if blocks else None,
             )
             db.add(m)
             row = db.get(ChatSessionRow, session_id)
@@ -372,7 +384,12 @@ class repo:
             for m in rows:
                 d = {"role": m.role, "content": m.content,
                      "created_at": m.created_at}
-                if m.tool_calls_json:
+                if m.blocks_json:
+                    try:
+                        d["blocks"] = json.loads(m.blocks_json)
+                    except json.JSONDecodeError:
+                        pass
+                if m.tool_calls_json and "blocks" not in d:
                     try:
                         d["tool_calls"] = json.loads(m.tool_calls_json)
                     except json.JSONDecodeError:

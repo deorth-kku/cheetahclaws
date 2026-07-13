@@ -112,6 +112,11 @@ class Message(Base):
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, default="", nullable=False)
     tool_calls_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Ordered content blocks: [{type:"text",...}, {type:"tool",...},
+    # {type:"ask",...}]. Replaces the flat tool_calls list so interleaving
+    # (text between tool calls) survives a page refresh. NULL for legacy
+    # rows — the renderer falls back to content + tool_calls_json.
+    blocks_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[float] = mapped_column(Float, default=time.time,
                                               nullable=False)
 

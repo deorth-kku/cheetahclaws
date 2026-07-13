@@ -649,15 +649,7 @@ Object.assign(ChatApp.prototype, {
     try {
       const r = await this._fetchAuth(`/api/sessions/${sid}`);
       const data = await r.json();
-      (data.messages || []).forEach(m => {
-        if (m.role === 'user') this._addUserBubble(m.content);
-        else if (m.role === 'assistant') {
-          this._addAssistantBubble(m.content);
-          if (m.tool_calls) m.tool_calls.forEach(tc => {
-            this._addToolCard(tc.name, tc.inputs, tc.status, tc.result, tc.tool_id);
-          });
-        }
-      });
+      (data.messages || []).forEach(m => this._renderMessage(m));
     } catch(e) { console.error('switchSession:', e); }
     this._connectWS(sid);
     this.loadSessions();
