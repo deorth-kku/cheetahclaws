@@ -136,6 +136,10 @@ def _ask_user_question(
     _clean = _re.sub(r'`(.+?)`', r'\1', _clean)
     _clean = _re.sub(r'\*(.+?)\*', r'\1', _clean)
 
+    # Build the option list as (label, value) tuples for the menu renderer.
+    _opts = [(o.get("label", ""), o.get("label", "")) for o in options]
+
+    # Render on the terminal (caller-facing) so local users still see it.
     print()
     print(clr("❓ ", "magenta", "bold") + clr(_clean, "bold"))
 
@@ -151,7 +155,8 @@ def _ask_user_question(
 
         while True:
             raw = ask_input_interactive(
-                "Your choice (number or text): ", config
+                "Your choice (number or text): ", config,
+                question=_clean, options=_opts, allow_freetext=allow_freetext,
             ).strip()
             if not raw:
                 return ""
@@ -160,7 +165,10 @@ def _ask_user_question(
                 if 1 <= idx <= len(options):
                     return options[idx - 1].get("label", "")
                 if idx == 0 and allow_freetext:
-                    return ask_input_interactive("Your answer: ", config).strip()
+                    return ask_input_interactive(
+                        "Your answer: ", config, question=_clean,
+                        options=_opts, allow_freetext=allow_freetext,
+                    ).strip()
                 print(f"Invalid option: {idx}")
                 continue
             if allow_freetext:
@@ -168,14 +176,19 @@ def _ask_user_question(
             print("Please choose a number from the list.")
 
     print()
-    return ask_input_interactive("Your answer: ", config).strip()
+    return ask_input_interactive(
+        "Your answer: ", config, question=_clean,
+        options=_opts, allow_freetext=allow_freetext,
+    ).strip()
 
 
 # ── ask_input_interactive (bridge routing) ────────────────────────────────
 
 def ask_input_interactive(prompt: str, config: dict,
                           menu_text: str = None,
-                          options: list[tuple[str, str]] | None = None) -> str:
+                          options: list[tuple[str, str]] | None = None,
+                          question: str = None,
+                          allow_freetext: bool = True) -> str:
     """Route input prompt to Telegram / WeChat / Slack bridge or terminal.
 
     `options` (optional) is a list of ``(button_label, return_value)`` pairs.
@@ -282,16 +295,36 @@ def ask_input_interactive(prompt: str, config: dict,
 
     # ── Web (chat API) ────────────────────────────────────────────────────
     if getattr(_session_ctx, 'in_web_turn', False):
-        # Permission event is already pushed to WS by ChatSession._run_agent.
-        # Just block here until the browser responds via /api/approve.
+        # Permission events are pushed to WS by ChatSession._run_agent, but
+        # AskUserQuestion has no equivalent: broadcast an "ask_request" event
+        # so the browser renders a question card, then block until the user
+        # answers via /api/ask-response. Without this the agent thread would
+        # hang forever waiting for input that the UI can never provide.
+        if getattr(_session_ctx, 'web_broadcast', None) is not None:
+            ask_opts = (
+                [{"label": lbl, "value": val} for (lbl, val) in options]
+                if options else None
+            )
+            # Show the real question (not the generic input prompt) so the
+            # user sees what's being asked without expanding the tool card.
+            ask_prompt = (question if question is not None
+                          else _re.sub(r'\x1b\[[0-9;]*m', '', prompt).strip())
+            _session_ctx.web_broadcast({
+                "type": "ask_request",
+                "data": {
+                    "prompt": _re.sub(r'\x1b\[[0-9;]*m', '', ask_prompt).strip(),
+                    "options": ask_opts,
+                    "allow_freetext": bool(allow_freetext),
+                },
+            })
         evt = _threading.Event()
-        _session_ctx.web_input_event = evt
+        _session_ctx.web_ask_event = evt
         if not evt.wait(timeout=_INPUT_WAIT_TIMEOUT):
-            _session_ctx.web_input_event = None
+            _session_ctx.web_ask_event = None
             return "(timeout: no input received)"
-        text = _session_ctx.web_input_value.strip()
-        _session_ctx.web_input_event = None
-        _session_ctx.web_input_value = ""
+        text = _session_ctx.web_ask_value.strip()
+        _session_ctx.web_ask_event = None
+        _session_ctx.web_ask_value = ""
         return text
 
     # ── Telegram ───────────────────────────────────────────────────────────
@@ -351,6 +384,10 @@ def ask_input_interactive(prompt: str, config: dict,
 
     # ── Terminal ────────────────────────────────────────────────────────────
     try:
+        if question is not None:
+            # When a question is supplied (AskUserQuestion path), echo it so
+            # terminal users see the prompt without relying on the caller.
+            print(_re.sub(r'\x1b\[[0-9;]*m', '', question).strip())
         if _menu_block:
             # Print on a fresh line so the menu sits cleanly above the
             # input cursor; the original prompt text (which already shows

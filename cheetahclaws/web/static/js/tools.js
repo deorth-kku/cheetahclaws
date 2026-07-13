@@ -114,6 +114,74 @@ Object.assign(ChatApp.prototype, {
     setTimeout(() => { const inp = document.getElementById(uid); if (inp) inp.focus(); }, 100);
   },
 
+  _addAskRequest(data) {
+    const el = document.createElement('div');
+    el.className = 'ask-card';
+    const uid = 'ask-' + Date.now();
+    const options = data.options || [];
+    const allowFree = data.allow_freetext !== false;
+    const optHtml = options.map((o, i) =>
+      `<button class="ask-opt" data-value="${this._esc(o.value)}"
+        style="display:block;width:100%;text-align:left;margin:4px 0;background:var(--surface);
+          border:1px solid var(--border);color:var(--text);border-radius:var(--radius-sm);
+          padding:8px 12px;font-size:13px;cursor:pointer;font-family:var(--font);"
+        onmouseenter="this.style.background='var(--panel)'"
+        onmouseleave="this.style.background='var(--surface)'"
+        onclick="app._answerAsk(this.getAttribute('data-value'))">
+        <span style="color:var(--accent);font-weight:600;margin-right:8px;">${i+1}.</span>
+        ${this._esc(o.label)}</button>`).join('');
+    el.innerHTML = `
+      <div class="ask-hdr">&#10067; Question</div>
+      <div class="ask-q">${this._esc(data.prompt)}</div>
+      ${optHtml}
+      ${allowFree ? `
+      <div style="display:flex;gap:6px;margin-top:8px;">
+        <input id="${uid}" type="text" placeholder="Type your answer…"
+          style="flex:1;background:var(--panel);border:1px solid var(--border);color:var(--text);
+            border-radius:var(--radius-sm);padding:6px 10px;font-size:13px;font-family:var(--font);outline:none;"
+          onkeydown="if(event.key==='Enter'){document.getElementById('${uid}-go').click()}">
+        <button id="${uid}-go" style="background:var(--accent);color:#000;border:none;padding:6px 14px;
+          border-radius:var(--radius-sm);font-weight:600;font-size:12px;cursor:pointer;"
+          onclick="app._answerAsk(document.getElementById('${uid}').value)">Send</button>
+      </div>` : ''}`;
+    document.getElementById('messages').appendChild(el);
+    this._askEl = el;
+    this._pendingAsk = true;
+    this._scrollBottom();
+    if (allowFree) {
+      setTimeout(() => { const inp = document.getElementById(uid); if (inp) inp.focus(); }, 100);
+    }
+  },
+
+  _answerAsk(value) {
+    if (!this._pendingAsk) return;
+    const v = (value || '').trim();
+    if (this.ws && this.ws.readyState === 1) {
+      this.ws.send(JSON.stringify({type: 'ask_response', value: v}));
+    } else {
+      fetch('/api/ask-response', {
+        method: 'POST', credentials: 'same-origin',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({session_id: this.sessionId, value: v}),
+      }).catch(e => console.error('ask-response:', e));
+    }
+    // Reflect the chosen answer in the card so it reads as a normal turn.
+    if (this._askEl) {
+      const qEl = this._askEl.querySelector('.ask-q');
+      if (qEl && v) qEl.innerHTML += ` <span style="color:var(--accent);font-weight:600;">→ ${this._esc(v)}</span>`;
+      this._askEl.style.opacity = '0.6';
+      this._askEl.style.pointerEvents = 'none';
+    }
+  },
+
+  _resolveAsk(data) {
+    if (this._askEl) {
+      this._askEl.classList.add('resolved');
+      this._askEl = null;
+    }
+    this._pendingAsk = false;
+  },
+
   _addInteractiveMenu(data) {
     const icons = {bulb:'&#128161;',clipboard:'&#128203;',worker:'&#128119;',
       brain:'&#129504;',sparkle:'&#10024;',search:'&#128270;',book:'&#128214;',

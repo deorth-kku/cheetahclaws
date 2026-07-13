@@ -18,6 +18,8 @@ class ChatApp {
     this._approvalEl = null;
     this._activityEl = null;
     this._pendingApproval = false;
+    this._askEl = null;
+    this._pendingAsk = false;
     this._authed = false;
     this._authMode = 'login';   // or 'register'
     this._sessions = [];        // last fetched list (for search filter)
@@ -415,6 +417,13 @@ class ChatApp {
         this._removeActivity();
         this._addInputRequest(evt.data);
         break;
+      case 'ask_request':
+        this._removeActivity();
+        this._addAskRequest(evt.data);
+        break;
+      case 'ask_response':
+        this._resolveAsk(evt.data);
+        break;
       case 'error':
         this._removeActivity();
         this._addError(evt.data.message);
@@ -431,6 +440,7 @@ class ChatApp {
     this._textBuf = ''; this._toolCards = {};
     this._toolCounter = 0; this._approvalEl = null;
     this._pendingApproval = false;
+    this._askEl = null; this._pendingAsk = false;
   }
 
   _addUserBubble(text, img) {

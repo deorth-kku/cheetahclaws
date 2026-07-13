@@ -258,6 +258,10 @@ class ChatSession:
         ctx = runtime.get_session_ctx(self.session_id)
         ctx.agent_state = self._agent_state
         ctx.run_query = lambda msg: self.submit_prompt(msg)
+        # Let ask_input_interactive() (AskUserQuestion tool, etc.) push an
+        # "ask_request" event to browser WS clients directly.
+        ctx.web_broadcast = lambda event: self._broadcast(
+            ChatEvent(event["type"], event.get("data", {})))
 
     # ── Subscriber management ──────────────────────────────────────────
 
@@ -824,6 +828,8 @@ class ChatSession:
             ctx.on_tool_start = None
             ctx.on_tool_end = None
             ctx.in_web_turn = False
+            ctx.web_ask_event = None
+            ctx.web_ask_value = ""
 
     # ── Permission approval ────────────────────────────────────────────
 
@@ -834,6 +840,20 @@ class ChatSession:
         evt = ctx.web_input_event
         if evt:
             ctx.web_input_value = "y" if granted else "n"
+            evt.set()
+
+    def respond_to_ask(self, value: str):
+        """Respond to a pending AskUserQuestion / ask_input_interactive call.
+
+        `value` is the user's answer — either the chosen option's label (or
+        the literal text the agent expects) or free-form text.  Mirrors
+        approve_permission() but for the AskUserQuestion tool path.
+        """
+        from cheetahclaws import runtime
+        ctx = runtime.get_session_ctx(self.session_id)
+        evt = ctx.web_ask_event
+        if evt:
+            ctx.web_ask_value = value or ""
             evt.set()
 
     def request_stop(self):

@@ -104,6 +104,16 @@ class RuntimeContext:
     # Web (chat API) bridge synchronization
     web_input_event:  Optional[threading.Event] = None
     web_input_value:  str = ""
+    # web_broadcast(event_dict) — lets ask_input_interactive() push an
+    # "ask_request" event to browser WS clients without holding a direct
+    # reference to the ChatSession. Set by ChatSession._init_runtime.
+    web_broadcast:    Optional[Callable[[dict], None]] = None
+    # AskUserQuestion (free-text / multi-choice) sync for the Web UI.
+    # ask_input_interactive() sets web_ask_event and blocks; the browser
+    # delivers the chosen value (option label or free text) via
+    # /api/ask-response, which sets web_ask_value and fires web_ask_event.
+    web_ask_event:    Optional[threading.Event] = None
+    web_ask_value:    str = ""
     in_web_turn:      bool = False
 
     # Transient per-turn data

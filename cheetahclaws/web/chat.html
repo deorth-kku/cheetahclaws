@@ -396,6 +396,21 @@ body.resizing { cursor:col-resize; user-select:none; }
 .approval-card .ap-btn.deny { background:var(--red); color:#000; }
 .approval-card.resolved { opacity:.5; pointer-events:none; }
 
+/* ── AskUserQuestion card ────────────────────────────────────── */
+.ask-card {
+  max-width:min(580px,90%); border:1px solid var(--accent); border-radius:var(--radius);
+  background:var(--accent-dim); padding:14px 16px; margin:8px 0; animation:fadeIn .2s ease;
+}
+.ask-card .ask-hdr {
+  display:flex; align-items:center; gap:8px; margin-bottom:8px;
+  font-weight:600; color:var(--accent); font-size:13px;
+}
+.ask-card .ask-q {
+  font-size:13px; color:var(--text-dim); margin-bottom:10px; white-space:pre-wrap;
+  font-family:var(--mono); line-height:1.5;
+}
+.ask-card.resolved { opacity:.5; pointer-events:none; }
+
 /* ── Activity indicator (visible working state) ──────────────── */
 .activity-indicator {
   max-width:min(640px,90%); display:flex; align-items:center; gap:10px;
