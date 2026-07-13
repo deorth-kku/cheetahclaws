@@ -41,9 +41,20 @@ promptInput.addEventListener('paste', (e) => {
   }
 });
 
-document.getElementById('main').addEventListener('click', () => {
+document.getElementById('main').addEventListener('click', (e) => {
+  // Don't close the drawer when the click came from the sidebar itself
+  // or from the hamburger toggle button (those handle their own state).
+  if (e.target.closest('#sidebar') || e.target.closest('#menu-btn')) return;
   document.getElementById('sidebar').classList.remove('open');
 });
+
+const menuBtn = document.getElementById('menu-btn');
+if (menuBtn) {
+  menuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    app.toggleSidebar();
+  });
+}
 
 /* ── Sidebar resizer ───────────────────────────────────────────── */
 (function initSidebarResizer() {

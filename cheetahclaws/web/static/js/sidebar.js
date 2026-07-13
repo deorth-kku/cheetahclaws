@@ -3,6 +3,11 @@
 
 Object.assign(ChatApp.prototype, {
 
+  toggleSidebar() {
+    const sb = document.getElementById('sidebar');
+    if (sb) sb.classList.toggle('open');
+  },
+
   async loadSessions() {
     // Fetch sessions and folders independently. If /api/folders is missing
     // (older server) or errors, the session list still renders flat.
