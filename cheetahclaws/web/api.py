@@ -271,6 +271,12 @@ class ChatSession:
                     "agent history rehydrate failed",
                     extra={"session_id": self.session_id, "err": str(exc)})
         ctx = runtime.get_session_ctx(self.session_id)
+        ctx.agent_state = self._agent_state
+        ctx.run_query = lambda msg: self.submit_prompt(msg)
+        # Let ask_input_interactive() (AskUserQuestion tool, etc.) push an
+        # "ask_request" event to browser WS clients directly.
+        ctx.web_broadcast = lambda event: self._broadcast(
+            ChatEvent(event["type"], event.get("data", {})))
 
     @staticmethod
     def _messages_to_neutral(db_messages: list[dict]) -> list[dict]:
@@ -385,12 +391,6 @@ class ChatSession:
         except Exception:
             pass
         return neutral
-        ctx.agent_state = self._agent_state
-        ctx.run_query = lambda msg: self.submit_prompt(msg)
-        # Let ask_input_interactive() (AskUserQuestion tool, etc.) push an
-        # "ask_request" event to browser WS clients directly.
-        ctx.web_broadcast = lambda event: self._broadcast(
-            ChatEvent(event["type"], event.get("data", {})))
 
     # ── Subscriber management ──────────────────────────────────────────
 
