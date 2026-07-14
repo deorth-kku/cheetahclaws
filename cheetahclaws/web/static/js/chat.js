@@ -425,6 +425,14 @@ class ChatApp {
       case 'tool_end':
         this._removeActivity();
         this._completeToolCard(evt.data.name, evt.data.result, evt.data.permitted, evt.data.tool_id);
+        if (evt.data.name === 'AskUserQuestion') {
+          // Show a Processing spinner while the agent processes the answer,
+          // mirroring the same UX as a regular user prompt. The spinner is
+          // cleared automatically when the agent emits its first event
+          // (text_chunk → _startAssistantStream → _removeActivity).
+          this._resolveAsk(evt.data);
+          this._showActivity('', 'Processing', 'waiting for agent…');
+        }
         break;
       case 'permission_request':
         this._removeActivity();

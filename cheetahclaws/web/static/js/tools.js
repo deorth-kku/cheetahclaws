@@ -202,6 +202,7 @@ Object.assign(ChatApp.prototype, {
       this._askEl.style.opacity = '0.6';
       this._askEl.style.pointerEvents = 'none';
     }
+    this._scrollBottom();
   },
 
   _resolveAsk(data) {
