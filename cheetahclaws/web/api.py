@@ -255,7 +255,136 @@ class ChatSession:
         from cheetahclaws import runtime
 
         self._agent_state = AgentState()
+        # On reconnect to an existing session, the DB holds the conversation
+        # (self.messages, hydrated in __init__) but the freshly-created
+        # AgentState is empty.  The agent loop (run()) and /history both read
+        # AgentState.messages, so without rehydrating it the agent "forgets"
+        # everything after a server restart even though the UI shows the
+        # history.  Rebuild the neutral message list from the persisted rows.
+        if self.messages:
+            try:
+                self._agent_state.messages = self._messages_to_neutral(
+                    self.messages)
+            except Exception as exc:  # noqa: BLE001
+                from cheetahclaws.web.logging_setup import get_logger
+                get_logger("api").exception(
+                    "agent history rehydrate failed",
+                    extra={"session_id": self.session_id, "err": str(exc)})
         ctx = runtime.get_session_ctx(self.session_id)
+
+    @staticmethod
+    def _messages_to_neutral(db_messages: list[dict]) -> list[dict]:
+        """Convert persisted ChatSession messages (per-turn, block-based) into
+        the fine-grained neutral format the agent loop expects.
+
+        Persisted shape (one row per *turn*):
+            {"role": "user",    "content": ...}
+            {"role": "assistant", "content": ..., "blocks": [
+                {type:"text", text}, {type:"tool", name, inputs, tool_id,
+                 status, result}, {type:"ask", ...}]}
+        Neutral shape (interleaved, one row per message) required by the LLM
+        backends:
+            {"role":"user", "content":...}
+            {"role":"assistant","content":...,"tool_calls":[
+                {"id","name","input","type":"function"}]}
+            {"role":"tool","tool_call_id":...,"name":...,"content":...}
+        """
+        from cheetahclaws.compaction import sanitize_history
+
+        neutral: list[dict] = []
+        for m in db_messages:
+            role = m.get("role")
+            if role == "user":
+                nm: dict = {"role": "user",
+                            "content": m.get("content", "")}
+                if m.get("images"):
+                    nm["images"] = m["images"]
+                neutral.append(nm)
+                continue
+
+            if role != "assistant":
+                # Shouldn't happen at this layer, but keep it safe.
+                neutral.append({"role": role,
+                                "content": m.get("content", "")})
+                continue
+
+            text_parts: list[str] = []
+            tool_calls: list[dict] = []
+            tool_results: list[dict] = []
+
+            blocks = m.get("blocks")
+            if isinstance(blocks, list) and blocks:
+                for b in blocks:
+                    btype = b.get("type")
+                    if btype == "text":
+                        if b.get("text"):
+                            text_parts.append(b["text"])
+                    elif btype == "tool":
+                        tid = (b.get("tool_id") or b.get("id")
+                               or f"tool_{len(tool_calls)}")
+                        tool_calls.append({
+                            "id":   tid,
+                            "name": b.get("name", ""),
+                            "input": b.get("inputs") or {},
+                            "type": "function",
+                        })
+                        # Only pair a tool_result for completed calls; dropped
+                        # or unanswered calls are cleaned by sanitize_history.
+                        if b.get("status") in ("done", "denied") \
+                                and "result" in b:
+                            tool_results.append({
+                                "role":         "tool",
+                                "tool_call_id": tid,
+                                "name":         b.get("name", ""),
+                                "content":      b.get("result") or "",
+                            })
+                    # "ask" blocks have no neutral representation needed to
+                    # continue the conversation (the question was already
+                    # answered); skip to keep tool_call pairing valid.
+                if not text_parts and not tool_calls:
+                    content = m.get("content", "")
+                    if content:
+                        text_parts.append(content)
+            else:
+                # Legacy rows: flat tool_calls list, no blocks.
+                tcs = m.get("tool_calls")
+                if isinstance(tcs, list) and tcs:
+                    for tc in tcs:
+                        tid = (tc.get("id") or tc.get("tool_id")
+                               or f"tool_{len(tool_calls)}")
+                        tool_calls.append({
+                            "id":    tid,
+                            "name":  tc.get("name", ""),
+                            "input": tc.get("inputs") or tc.get("input")
+                                     or {},
+                            "type":  "function",
+                        })
+                        if tc.get("status") in ("done", "denied") \
+                                and "result" in tc:
+                            tool_results.append({
+                                "role":         "tool",
+                                "tool_call_id": tid,
+                                "name":         tc.get("name", ""),
+                                "content":      tc.get("result") or "",
+                            })
+                content = m.get("content", "")
+                if content:
+                    text_parts.append(content)
+
+            msg: dict = {"role": "assistant",
+                         "content": "".join(text_parts)}
+            if tool_calls:
+                msg["tool_calls"] = tool_calls
+            neutral.append(msg)
+            neutral.extend(tool_results)
+
+        # Drop any orphan tool_results / unanswered tool_calls so the
+        # reconstructed history is valid for the next API call.
+        try:
+            neutral = sanitize_history(neutral)
+        except Exception:
+            pass
+        return neutral
         ctx.agent_state = self._agent_state
         ctx.run_query = lambda msg: self.submit_prompt(msg)
         # Let ask_input_interactive() (AskUserQuestion tool, etc.) push an
