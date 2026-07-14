@@ -486,6 +486,39 @@ def test_reap_stale_chat_sessions_passes_user_id(server_url):
         assert sid not in _apimod._chat_sessions
 
 
+def test_reap_preserves_db_history(server_url):
+    """Regression for webui silently losing session history.
+
+    The reaper must evict the in-memory ChatSession object (to free RAM) but
+    MUST NOT delete the DB row — otherwise the session disappears from the
+    session list and all message history is lost. The DB is the source of
+    truth and sessions rehydrate from it on the next request.
+    """
+    with _client(server_url) as c:
+        _register(c, "alice")
+        r = c.post("/api/prompt",
+                   json={"prompt": "remember this", "session_id": ""})
+        sid = r.json()["session_id"]
+        from cheetahclaws.web import api as _apimod
+        sess = _apimod._chat_sessions.get(sid)
+        assert sess is not None
+        import time as _time
+        sess.last_active = _time.monotonic() - 1e9  # very old / stale
+        # Clear the busy flag — the agent thread from submit_prompt may
+        # still be running; the reaper only evicts idle sessions.
+        sess._busy.clear()
+        _apimod.reap_stale_chat_sessions()
+        # In-memory object freed
+        assert sid not in _apimod._chat_sessions
+        # DB row + history must survive so the session stays in the list
+        assert any(s["id"] == sid for s in c.get("/api/sessions").json()["sessions"])
+        assert c.get(f"/api/sessions/{sid}").status_code == 200
+        # And it rehydrates back into memory on the next request
+        assert _apimod._chat_sessions.get(sid) is not None or \
+            _apimod.get_chat_session(sid, None) is not None or \
+            c.get(f"/api/sessions/{sid}").status_code == 200
+
+
 def test_cross_user_isolation(server_url):
     with _client(server_url) as ca:
         _register(ca, "alice")

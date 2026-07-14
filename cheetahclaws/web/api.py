@@ -1250,17 +1250,35 @@ def get_available_models() -> list[dict]:
 
 
 def reap_stale_chat_sessions():
-    """Called periodically by server.py's reaper thread.
+    """Periodically evict idle in-memory ChatSession objects to free memory.
 
-    `remove_chat_session` requires the owning user_id for ownership-check
-    parity with the per-user DELETE endpoint, so we capture it from the
-    cached ChatSession object — collecting `(sid, user_id)` pairs under the
-    lock and applying outside it (remove_chat_session re-acquires).
+    CRITICAL: this only removes the *in-memory* object. The DB row (and all
+    message history) is the source of truth for the session list and must
+    NEVER be deleted here — sessions rehydrate from the DB on the next request
+    via ``get_chat_session()``. Calling ``remove_chat_session()`` (which deletes
+    the DB row and cascades to messages) from the reaper was the bug that made
+    sessions silently "disappear" from the list after 30 min of inactivity.
+    To permanently delete a session, the user must hit the DELETE endpoint,
+    which intentionally removes the DB row.
+
+    Sessions with a live WebSocket subscriber are skipped so a quiet-but-open
+    browser tab isn't evicted out from under the user (the agent can still push
+    events to it).
     """
-    stale: list[tuple[str, int]] = []
+    stale: list[str] = []
     with _chat_lock:
         for sid, session in _chat_sessions.items():
-            if session.is_stale() and session.is_idle():
-                stale.append((sid, session.user_id))
-    for sid, user_id in stale:
-        remove_chat_session(sid, user_id)
+            if not (session.is_idle() and session.is_stale()):
+                continue
+            with session._sub_lock:
+                has_subscriber = bool(session._subscribers)
+            if not has_subscriber:
+                stale.append(sid)
+    for sid in stale:
+        with _chat_lock:
+            session = _chat_sessions.pop(sid, None)
+        if session is not None:
+            try:
+                session.cleanup()
+            except Exception:  # noqa: BLE001
+                pass
