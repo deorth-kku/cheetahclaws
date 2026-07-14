@@ -20,6 +20,10 @@ _SAFE_PREFIXES = (
 
 _CHAIN_OPERATORS = (";", "&&", "||", "`", "$(", "\n")
 
+import re as _re
+
+_CD_PREFIX_RE = _re.compile(r'^cd\s+(.+?)\s+&&\s*(.*)$', _re.DOTALL)
+
 # Commands safe to use as pipe tails — strictly read-only, no side effects.
 # If the pipe tail is anything else (curl, rm, xargs, sh, bash, etc.), the
 # whole command is rejected even if the prefix is safe.
@@ -45,6 +49,20 @@ def _is_safe_bash(cmd: str) -> bool:
       - Pipes to unsafe tails (| rm, | curl, | xargs, | sh, etc.)
     """
     c = cmd.strip()
+
+    # Strip "cd <dir> && " prefix when <dir> is the current directory or a
+    # subdirectory of it.  This is a common agent pattern (e.g. "cd project
+    # && ls") and the cd itself is harmless in that case.
+    _m = _CD_PREFIX_RE.match(c)
+    if _m:
+        target_dir = _m.group(1).strip()
+        remainder = _m.group(2).strip()
+        try:
+            cwd = Path(os.getcwd()).resolve()
+            (cwd / target_dir).resolve().relative_to(cwd)
+            c = remainder
+        except Exception:
+            pass  # not a subdirectory or resolution failed — keep original cmd
 
     # Reject truly dangerous chaining operators (no pipe — pipe is handled below)
     if any(op in c for op in _CHAIN_OPERATORS):
