@@ -576,6 +576,12 @@ body.resizing { cursor:col-resize; user-select:none; }
 }
 #topbar .settings-btn:hover { border-color:var(--accent); color:var(--accent); }
 
+/* ── Sidebar header: wrap when narrow ───────────────────────── */
+#sidebar .hdr { flex-wrap:wrap; gap:4px; }
+#sidebar .hdr h2 { width:100%; margin-bottom:4px; }
+#sidebar .hdr-buttons { width:100%; flex-wrap:wrap; }
+#sidebar .hdr-buttons button { flex:1 1 auto; min-width:0; }
+
 /* ── Responsive ───────────────────────────────────────────────── */
 @media (max-width:768px) {
   #sidebar {
@@ -587,19 +593,6 @@ body.resizing { cursor:col-resize; user-select:none; }
   #topbar .menu-btn { display:block; }
   .msg { max-width:95%; }
   .msg.user { max-width:90%; }
-  #sidebar .hdr {
-    flex-wrap:wrap; gap:4px;
-  }
-  #sidebar .hdr h2 {
-    width:100%; margin-bottom:4px;
-  }
-  #sidebar .hdr-buttons {
-    width:100%;
-    flex-wrap:wrap;
-  }
-  #sidebar .hdr-buttons button {
-    flex:1 1 auto; min-width:0;
-  }
 }
 </style>
 </head>
