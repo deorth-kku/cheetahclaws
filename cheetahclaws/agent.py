@@ -102,8 +102,15 @@ def run(
         user_msg["images"] = [pending_img]
     state.messages.append(user_msg)
 
-    # Inject runtime metadata into config so tools (e.g. Agent) can access it
-    config = {**config, "_depth": depth, "_system_prompt": system_prompt}
+    # Keep a handle to the *live* config object. The web UI's Behavior panel
+    # mutates this same dict in place via ChatSession.update_config, so holding
+    # the reference (rather than a copy) lets us pick up changes mid-turn.
+    live_config = config
+
+    # Inject runtime metadata into config so tools (e.g. Agent) can access it.
+    # Re-snapshotted at the top of every loop iteration (see `while True`)
+    # so mid-turn edits take effect on the next API call / permission check.
+    config = {**live_config, "_depth": depth, "_system_prompt": system_prompt}
     session_id = config.get("_session_id", "default")
 
     # Wire up structured logging from config (idempotent, cheap)
@@ -143,6 +150,11 @@ def run(
     while True:
         if cancel_check and cancel_check():
             return
+        # Re-snapshot from the live config so Behavior-panel edits made via the
+        # web UI (permission_mode, thinking, verbose, max_tokens, …) take effect
+        # on the very next API call / permission check instead of waiting for the
+        # next user message.
+        config = {**live_config, "_depth": depth, "_system_prompt": system_prompt}
         state.turn_count += 1
         assistant_turn: AssistantTurn | None = None
 
