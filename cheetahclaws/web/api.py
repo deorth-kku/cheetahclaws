@@ -980,6 +980,14 @@ class ChatSession:
                 elif isinstance(event, ThinkingChunk):
                     self._broadcast(ChatEvent("thinking_chunk",
                                               {"text": event.text}))
+                    # Accumulate the reasoning trace into a `thinking` block.
+                    # Merge contiguous thinking into one block (so the trace
+                    # survives a refresh as a single collapsible node), but
+                    # split it when a tool call interrupts the trace.
+                    if _cur_block is None or _cur_block["type"] != "thinking":
+                        _cur_block = {"type": "thinking", "text": ""}
+                        blocks.append(_cur_block)
+                    _cur_block["text"] += event.text
 
                 elif isinstance(event, ToolStart):
                     tc_block = {

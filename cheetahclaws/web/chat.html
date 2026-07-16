@@ -444,6 +444,32 @@ body.resizing { cursor:col-resize; user-select:none; }
 }
 @keyframes think { 0%{transform:translateX(-100%)} 100%{transform:translateX(400%)} }
 
+/* ── Thinking trace block ─────────────────────────────────────── */
+.thinking-block {
+  max-width:min(720px,92%); margin:8px 0; align-self:flex-start;
+  border:1px solid var(--border); border-left:3px solid var(--purple);
+  border-radius:var(--radius-sm); background:var(--surface);
+  animation:fadeIn .2s ease; font-size:13px;
+}
+.thinking-block details { padding:0; }
+.thinking-block summary {
+  list-style:none; cursor:pointer; user-select:none;
+  padding:8px 12px; display:flex; align-items:center; gap:8px;
+  color:var(--purple); font-weight:600;
+}
+.thinking-block summary::-webkit-details-marker { display:none; }
+.thinking-block .th-icon { font-size:13px; }
+.thinking-block .th-caret {
+  margin-left:auto; font-size:10px; color:var(--text-muted);
+  transition:transform .15s;
+}
+.thinking-block details:not([open]) .th-caret { transform:rotate(-90deg); }
+.thinking-block .thinking-content {
+  padding:4px 14px 12px; color:var(--text-dim); white-space:pre-wrap;
+  font-family:var(--mono); font-size:12px; line-height:1.55;
+  max-height:320px; overflow-y:auto; border-top:1px solid var(--border-dim);
+}
+
 /* Thinking-specific style */
 .activity-indicator.thinking { border-color:var(--blue); background:var(--blue-dim); }
 .activity-indicator.thinking .ai-spinner { border-color:rgba(96,165,250,0.3); border-top-color:var(--blue); }

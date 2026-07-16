@@ -80,7 +80,6 @@ Object.assign(ChatApp.prototype, {
 
   _removeActivity() {
     if (this._activityEl) { this._activityEl.remove(); this._activityEl = null; }
-    if (this._thinkEl) { this._thinkEl.remove(); this._thinkEl = null; }
   },
 
   _addInputRequest(data) {

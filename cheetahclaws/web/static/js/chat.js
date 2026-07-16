@@ -13,6 +13,7 @@ class ChatApp {
     this._textBuf = '';
     this._curMsgEl = null;
     this._thinkEl = null;
+    this._thinkBuf = '';
     this._toolCards = {};
     this._toolCounter = 0;
     this._approvalEl = null;
@@ -57,6 +58,10 @@ class ChatApp {
       for (const b of blocks) {
         if (b.type === 'text') {
           if (b.text && b.text.trim()) this._addAssistantBubble(b.text);
+        } else if (b.type === 'thinking') {
+          // Persisted reasoning trace (post-refresh). Render as the same
+          // finalized, collapsible thinking block shown during live streaming.
+          if (b.text && b.text.trim()) this._addThinkingBlock(b.text, true);
         } else if (b.type === 'tool') {
           this._addToolCard(b.name, b.inputs, b.status || 'done',
                             b.result || '', b.tool_id);
@@ -414,11 +419,17 @@ class ChatApp {
         this._renderStream();
         break;
       case 'thinking_chunk':
-        this._showActivity('thinking', 'Thinking',
-          evt.data.text ? evt.data.text.slice(0, 60) : '');
+        this._removeActivity();
+        this._appendThinking(evt.data.text || '');
         break;
       case 'tool_start':
         this._removeActivity();
+        // A tool call ends the current reasoning phase. Reset the live
+        // thinking reference so any thinking emitted *after* the tool spawns
+        // a fresh card instead of appending to the pre-tool trace. Mirrors
+        // the api.py block accumulation (a tool block splits thinking).
+        this._thinkEl = null;
+        this._thinkBuf = '';
         this._addToolCard(evt.data.name, evt.data.inputs, 'running', '', evt.data.tool_id);
         this._showActivity('tool-running', `Running ${evt.data.name}`, '');
         break;
@@ -448,6 +459,10 @@ class ChatApp {
       case 'status':
         if (evt.data.state === 'running') {
           this.setStatus('running');
+          // Start a fresh turn: previous thinking block stays in the DOM as
+          // history, but we drop the reference so a new block is created.
+          this._thinkEl = null;
+          this._thinkBuf = '';
           this._showActivity('', 'Processing', '');
         } else if (evt.data.state === 'idle') {
           this._removeActivity();
@@ -487,7 +502,7 @@ class ChatApp {
     const el = document.getElementById('messages');
     el.innerHTML = '<div style="flex:1"></div>';
     this._curMsgEl = null; this._thinkEl = null; this._activityEl = null;
-    this._textBuf = ''; this._toolCards = {};
+    this._textBuf = ''; this._thinkBuf = ''; this._toolCards = {};
     this._toolCounter = 0; this._approvalEl = null;
     this._pendingApproval = false;
     this._askEl = null; this._pendingAsk = false;
@@ -545,6 +560,28 @@ class ChatApp {
     }
   }
 
+  // Append a thinking-trace chunk to a persistent, collapsible block so the
+  // model's reasoning stays visible (like the CLI's verbose thinking output)
+  // instead of being discarded after a 60-char spinner.
+  _appendThinking(text) {
+    if (!this._thinkEl) {
+      const el = document.createElement('div');
+      el.className = 'thinking-block';
+      el.innerHTML =
+        '<details open>' +
+        '<summary><span class="th-icon">💭</span>Thinking' +
+        '<span class="th-caret">▾</span></summary>' +
+        '<div class="thinking-content"></div></details>';
+      document.getElementById('messages').appendChild(el);
+      this._thinkEl = el;
+      this._thinkBuf = '';
+      this._scrollBottom();
+    }
+    this._thinkBuf += text;
+    this._thinkEl.querySelector('.thinking-content').textContent = this._thinkBuf;
+    this._scrollBottom();
+  }
+
   _finishTurn(tokIn, tokOut) {
     this._removeActivity();
     this.streaming = false;
@@ -562,6 +599,24 @@ class ChatApp {
     const el = document.createElement('div');
     el.style.cssText = 'color:var(--red);font-size:13px;padding:8px 12px;background:var(--red-dim);border-radius:var(--radius-sm);margin:8px 0;max-width:min(640px,90%)';
     el.textContent = msg;
+    document.getElementById('messages').appendChild(el);
+    this._scrollBottom();
+  }
+
+  // Render a persisted reasoning-trace block (e.g. after a page refresh).
+  // `finalized` keeps it collapsed-by-default and styled as "complete".
+  _addThinkingBlock(text, finalized) {
+    if (!text || !text.trim()) return;
+    const el = document.createElement('div');
+    el.className = 'thinking-block' + (finalized ? ' finalized' : '');
+    el.innerHTML =
+      `<details${finalized ? '' : ' open'}>` +
+      `<summary class="thinking-summary">` +
+        `<span class="thinking-icon">💭</span>` +
+        `<span class="thinking-label">${finalized ? 'Thinking complete' : 'Thinking'}</span>` +
+        `<span class="thinking-toggle">${finalized ? '▸' : '▾'}</span>` +
+      `</summary>` +
+      `<div class="thinking-content">${this._renderMd(text)}</div></details>`;
     document.getElementById('messages').appendChild(el);
     this._scrollBottom();
   }
