@@ -502,7 +502,14 @@ class ChatSession:
                 try:
                     q.put_nowait(event)
                 except queue.Full:
-                    pass
+                    from cheetahclaws.web.logging_setup import get_logger
+                    get_logger("api").warning(
+                        "dropping event %s for subscriber (queue full, "
+                        "size=%d) sid=%s buffered=%d",
+                        event.type, q.qsize(),
+                        getattr(self, "session_id", "?"),
+                        len(self._event_buffer),
+                    )
 
     # ── Prompt submission ──────────────────────────────────────────────
 
