@@ -93,6 +93,10 @@ Object.assign(ChatApp.prototype, {
       this._user = d.user;
       this._authed = true;
       this._renderUserFoot();
+      // Initialize the settings toggles (thinking/verbose) from the server
+      // config so they're a reliable single source of truth even before the
+      // settings panel is ever opened.
+      this._loadSettings();
       return d.user;
     } catch(e) { return null; }
   },

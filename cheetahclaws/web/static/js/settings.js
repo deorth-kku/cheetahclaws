@@ -104,10 +104,8 @@ Object.assign(ChatApp.prototype, {
   _renderConfig(cfg) {
     document.getElementById('sp-current-model').textContent = cfg.model || '(not set)';
     document.getElementById('sp-permission').value = cfg.permission_mode || 'auto';
-    document.getElementById('sp-thinking').className =
-      'sp-toggle' + (cfg.thinking ? ' on' : '');
-    document.getElementById('sp-verbose').className =
-      'sp-toggle' + (cfg.verbose ? ' on' : '');
+    this._setToggle('sp-thinking', cfg.thinking);
+    this._setToggle('sp-verbose', cfg.verbose);
     document.getElementById('sp-max-tokens').value = cfg.max_tokens || 40000;
     document.getElementById('sp-thinking-budget').value = cfg.thinking_budget || 10000;
     const keysEl = document.getElementById('sp-api-keys');
@@ -152,6 +150,14 @@ Object.assign(ChatApp.prototype, {
     listEl.querySelectorAll('.sp-model-item').forEach(el => {
       el.onclick = () => this.selectModel(el.dataset.model);
     });
+  },
+
+  // Single source of truth for a settings toggle: reflect `on` into the
+  // element's `on` class. Kept in one helper so getVerbose() (which reads
+  // sp-verbose directly) never diverges from what the panel shows.
+  _setToggle(id, on) {
+    const el = document.getElementById(id);
+    if (el) el.className = 'sp-toggle' + (on ? ' on' : '');
   },
 
   async selectModel(model) {

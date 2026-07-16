@@ -414,6 +414,9 @@ class ChatApp {
     switch (evt.type) {
       case 'text_chunk':
         this._removeActivity();
+        // Reasoning phase is over; collapse the thinking trace (unless the
+        // user wants verbose output) before the answer starts streaming.
+        this._collapseThinking();
         if (!this._curMsgEl) this._startAssistantStream();
         this._textBuf += evt.data.text;
         this._renderStream();
@@ -424,10 +427,12 @@ class ChatApp {
         break;
       case 'tool_start':
         this._removeActivity();
-        // A tool call ends the current reasoning phase. Reset the live
-        // thinking reference so any thinking emitted *after* the tool spawns
-        // a fresh card instead of appending to the pre-tool trace. Mirrors
-        // the api.py block accumulation (a tool block splits thinking).
+        // A tool call ends the current reasoning phase. Collapse the trace
+        // (unless verbose) and reset the live thinking reference so any
+        // thinking emitted *after* the tool spawns a fresh card instead of
+        // appending to the pre-tool trace. Mirrors the api.py block
+        // accumulation (a tool block splits thinking).
+        this._collapseThinking();
         this._thinkEl = null;
         this._thinkBuf = '';
         this._addToolCard(evt.data.name, evt.data.inputs, 'running', '', evt.data.tool_id);
@@ -454,6 +459,8 @@ class ChatApp {
         break;
       case 'turn_done':
         this._removeActivity();
+        // Collapse any thinking still open once the turn is fully done.
+        this._collapseThinking();
         this._finishTurn(evt.data.input_tokens, evt.data.output_tokens);
         break;
       case 'status':
@@ -560,6 +567,23 @@ class ChatApp {
     }
   }
 
+  // Verbose mode is sourced from the settings-panel toggle (the single
+  // source of truth — no separate copy is kept here, to avoid sync drift).
+  getVerbose() {
+    const el = document.getElementById('sp-verbose');
+    return !!(el && el.classList.contains('on'));
+  }
+
+  // Collapse the live thinking trace once the reasoning phase ends. Only
+  // stays open when verbose is enabled; otherwise it auto-collapses so the
+  // answer / tool output is what remains visible.
+  _collapseThinking() {
+    if (this._thinkEl && !this.getVerbose()) {
+      const det = this._thinkEl.querySelector('details');
+      if (det) det.open = false;
+    }
+  }
+
   // Append a thinking-trace chunk to a persistent, collapsible block so the
   // model's reasoning stays visible (like the CLI's verbose thinking output)
   // instead of being discarded after a 60-char spinner.
@@ -567,6 +591,8 @@ class ChatApp {
     if (!this._thinkEl) {
       const el = document.createElement('div');
       el.className = 'thinking-block';
+      // Start expanded; it auto-collapses when the turn produces output
+      // (text_chunk / tool_start / turn_done) unless verbose is on.
       el.innerHTML =
         '<details open>' +
         '<summary><span class="th-icon">💭</span>Thinking' +
@@ -604,17 +630,19 @@ class ChatApp {
   }
 
   // Render a persisted reasoning-trace block (e.g. after a page refresh).
-  // `finalized` keeps it collapsed-by-default and styled as "complete".
+  // `finalized` keeps it styled as "complete". Default state: collapsed
+  // unless verbose is on, matching the live-streaming behaviour.
   _addThinkingBlock(text, finalized) {
     if (!text || !text.trim()) return;
+    const open = this.getVerbose();
     const el = document.createElement('div');
     el.className = 'thinking-block' + (finalized ? ' finalized' : '');
     el.innerHTML =
-      `<details${finalized ? '' : ' open'}>` +
+      `<details${open ? ' open' : ''}>` +
       `<summary class="thinking-summary">` +
         `<span class="thinking-icon">💭</span>` +
         `<span class="thinking-label">${finalized ? 'Thinking complete' : 'Thinking'}</span>` +
-        `<span class="thinking-toggle">${finalized ? '▸' : '▾'}</span>` +
+        `<span class="thinking-toggle">${open ? '▾' : '▸'}</span>` +
       `</summary>` +
       `<div class="thinking-content">${this._renderMd(text)}</div></details>`;
     document.getElementById('messages').appendChild(el);
