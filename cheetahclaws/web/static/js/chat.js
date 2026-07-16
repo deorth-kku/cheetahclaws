@@ -604,8 +604,13 @@ class ChatApp {
       this._scrollBottom();
     }
     this._thinkBuf += text;
-    this._thinkEl.querySelector('.thinking-content').textContent = this._thinkBuf;
+    const thContent = this._thinkEl.querySelector('.thinking-content');
+    thContent.textContent = this._thinkBuf;
     this._scrollBottom();
+    // Also scroll the thinking-content div itself when it overflows
+    if (thContent.scrollHeight > thContent.clientHeight) {
+      thContent.scrollTop = thContent.scrollHeight;
+    }
   }
 
   _finishTurn(tokIn, tokOut) {
