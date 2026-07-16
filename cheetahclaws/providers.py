@@ -1485,6 +1485,53 @@ def _openai_cached_read_tokens(usage) -> int:
     return int(getattr(details, "cached_tokens", 0) or 0)
 
 
+def _openai_reasoning_delta(delta) -> str | None:
+    """Extract a streaming reasoning/thinking delta from an OpenAI-compat chunk.
+
+    Backends disagree on the field name:
+      - DeepSeek / older vLLM / Kimi / GLM: ``delta.reasoning_content``
+      - Newer vLLM + OpenAI guidance:      ``delta.reasoning``
+      - Some proxies: nested ``{"content": "..."}`` / ``{"text": "..."}``
+      - Pydantic SDK may park unknown fields only in ``model_extra``
+
+    Returns the non-empty string payload, or None when absent.
+    """
+    if delta is None:
+        return None
+
+    candidates = []
+    for key in ("reasoning_content", "reasoning"):
+        val = getattr(delta, key, None)
+        if val is None and isinstance(getattr(delta, "model_extra", None), dict):
+            val = delta.model_extra.get(key)
+        if val is None and isinstance(delta, dict):
+            val = delta.get(key)
+        if val is not None:
+            candidates.append(val)
+
+    for val in candidates:
+        if isinstance(val, str):
+            if val:
+                return val
+            continue
+        # Nested object forms used by a few OpenAI-compat proxies.
+        if isinstance(val, dict):
+            for k in ("content", "text", "reasoning", "reasoning_content"):
+                nested = val.get(k)
+                if isinstance(nested, str) and nested:
+                    return nested
+            continue
+        nested = (
+            getattr(val, "content", None)
+            or getattr(val, "text", None)
+            or getattr(val, "reasoning", None)
+            or getattr(val, "reasoning_content", None)
+        )
+        if isinstance(nested, str) and nested:
+            return nested
+    return None
+
+
 def stream_openai_compat(
     api_key: str,
     base_url: str,
@@ -1524,14 +1571,26 @@ def stream_openai_compat(
     conf_model=config.get("model") or model
     _prov = detect_provider(conf_model)
 
-    # DeepSeek v4: thinking is ON by default and controlled via extra_body.
-    # `thinking` is tri-state in DEFAULTS (config.py): None = unset (let
-    # provider default stand → ON for v4), True = explicit ON (also default),
-    # False = explicit OFF (user toggled via /thinking).  Only the explicit-OFF
-    # case injects the disable toggle.  `is False` is intentional: distinguishes
-    # explicit False from None.
+    # Thinking is tri-state in DEFAULTS (config.py):
+    #   None  = unset (let provider default stand — ON for DeepSeek v4)
+    #   True  = explicit ON  (user toggled via /thinking or --thinking)
+    #   False = explicit OFF (inject disable)
+    # `is False` is intentional: distinguishes explicit False from None.
     if config.get("thinking") is False:
         kwargs.setdefault("extra_body", {})["thinking"] = {"type": "disabled"}
+    elif config.get("thinking") is True and _prov != "openai":
+        # Official OpenAI chat.completions never returns CoT, and unknown
+        # thinking fields can 400 — skip that provider.  For OpenAI-compat
+        # backends (vLLM / SGLang / Qwen / DeepSeek / custom), enable the
+        # common request knobs other harnesses use so thinking traces are
+        # actually produced, not just parsed.
+        body = kwargs.setdefault("extra_body", {})
+        body.setdefault("thinking", {"type": "enabled"})
+        body.setdefault("enable_thinking", True)
+        ctk = body.setdefault("chat_template_kwargs", {})
+        if isinstance(ctk, dict):
+            ctk.setdefault("thinking", True)
+            ctk.setdefault("enable_thinking", True)
     eff = config.get("reasoning_effort")
     if eff:
         kwargs["reasoning_effort"] = eff
@@ -1599,11 +1658,11 @@ def stream_openai_compat(
         choice = chunk.choices[0]
         delta  = choice.delta
 
-        # Some providers (DeepSeek v4, Kimi K2 Thinking, GLM-4.6) stream
-        # chain-of-thought on a sibling `reasoning_content` field before any
-        # visible content.  Surface it as ThinkingChunk so the UI renders it
-        # consistently with Anthropic extended-thinking / Ollama thinking.
-        reasoning_delta = getattr(delta, "reasoning_content", None)
+        # Providers stream chain-of-thought on a sibling field before any
+        # visible content.  Field names vary — see `_openai_reasoning_delta`.
+        # Surface it as ThinkingChunk so the UI/CLI render it consistently
+        # with Anthropic extended-thinking / Ollama thinking.
+        reasoning_delta = _openai_reasoning_delta(delta)
         if reasoning_delta:
             reasoning_text += reasoning_delta
             yield ThinkingChunk(reasoning_delta)
@@ -1644,7 +1703,9 @@ def stream_openai_compat(
                         }
                         for t in (getattr(delta, "tool_calls", None) or [])
                     ] or None,
-                    "reasoning": getattr(delta, "reasoning_content", None),
+                    "reasoning": _openai_reasoning_delta(delta),
+                    "reasoning_content": getattr(delta, "reasoning_content", None),
+                    "reasoning_field": getattr(delta, "reasoning", None),
                 }
                 if any(_dump.values()):
                     with open(_debug_path, "a", encoding="utf-8") as _df:
@@ -1931,7 +1992,8 @@ def stream_litellm(
         val = dynamic_cap_max_tokens(messages, system, kwargs.get("tools"), _ctx_window, val)
         kwargs["max_tokens"] = val
 
-    text         = ""
+    text           = ""
+    reasoning_text = ""
     tool_buf: dict = {}
     in_tok = out_tok = 0
 
@@ -1945,6 +2007,12 @@ def stream_litellm(
             continue
 
         delta = chunk.choices[0].delta
+        # litellm normalises many backends, but field names still vary.
+        reasoning_delta = _openai_reasoning_delta(delta)
+        if reasoning_delta:
+            reasoning_text += reasoning_delta
+            yield ThinkingChunk(reasoning_delta)
+
         if getattr(delta, "content", None):
             text += delta.content
             yield TextChunk(delta.content)
@@ -1986,7 +2054,10 @@ def stream_litellm(
             {"id": v["id"] or f"call_{idx}", "name": v["name"], "input": inp}
         )
 
-    yield AssistantTurn(text, tool_calls, in_tok, out_tok)
+    yield AssistantTurn(
+        text, tool_calls, in_tok, out_tok,
+        reasoning_content=reasoning_text,
+    )
 
 
 def stream(
