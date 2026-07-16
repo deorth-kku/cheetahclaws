@@ -160,8 +160,15 @@ class repo:
     @staticmethod
     def upsert_session(session_id: str, user_id: int, *,
                        title: Optional[str] = None,
-                       config: Optional[dict] = None) -> None:
-        """Create or update a chat session row. Updates last_active."""
+                       config: Optional[dict] = None,
+                       migrate: bool = False) -> None:
+        """Create or update a chat session row. Updates last_active.
+
+        When ``migrate`` is True and the row already exists, the new ``config``
+        is merged on top of the existing stored config (instead of replacing
+        it). Used to rewrite a legacy full-snapshot row as a clean override
+        delta without losing any keys the snapshot still carried.
+        """
         with session_scope() as db:
             row = db.get(ChatSessionRow, session_id)
             if row is None:
@@ -175,7 +182,15 @@ class repo:
                 if title is not None:
                     row.title = title
                 if config is not None:
-                    row.config_json = json.dumps(config)
+                    if migrate:
+                        try:
+                            old = json.loads(row.config_json or "{}")
+                        except json.JSONDecodeError:
+                            old = {}
+                        old.update(config)
+                        row.config_json = json.dumps(old)
+                    else:
+                        row.config_json = json.dumps(config)
                 row.last_active = time.time()
 
     @staticmethod

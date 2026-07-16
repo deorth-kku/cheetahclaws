@@ -164,6 +164,36 @@ _WRITABLE_CONFIG_KEYS = frozenset({
     "custom_base_url", "ollama_base_url",
 })
 
+# Keys for which the server config file is the source of truth and the DB
+# holds only *explicit per-session overrides* (deltas).  API-key style keys
+# are intentionally excluded — they may legitimately be written to a session
+# with the same value as the file (e.g. when the user re-enters a key), and
+# we never want to silently ignore such an update.
+_CONFIG_OVERRIDE_KEYS = frozenset({
+    "model", "permission_mode", "verbose", "thinking",
+    "thinking_budget", "max_tokens", "max_tool_output",
+    "max_agent_depth", "shell_policy", "log_level",
+})
+
+
+def _is_real_override(key: str, value, live_cfg: dict, defaults: dict) -> bool:
+    """Return True only if ``value`` is a genuine per-session override.
+
+    A stored value is NOT a real override (so the session should follow the
+    server config file) when it equals either the live config file value or
+    the original DEFAULTS.  This discards creation-time snapshots: legacy
+    sessions were snapshotted with default-looking values, not explicit user
+    choices.  It also handles the tri-state ``thinking`` key, whose default
+    changed from ``False`` (older versions) to ``None`` — a stored ``False``
+    is treated as equivalent to the file's ``None``/falsy value, so stale
+    "off" defaults don't pin a session to a now-changed file.
+    """
+    if value == live_cfg.get(key) or value == defaults.get(key):
+        return False
+    if value is False and not live_cfg.get(key):
+        return False  # legacy "off" default vs current None/false → follow file
+    return True
+
 # Keys that contain secrets — never expose in GET responses
 _SECRET_KEYS = frozenset({
     "anthropic_api_key", "openai_api_key", "gemini_api_key",
@@ -211,10 +241,48 @@ class ChatSession:
                                   else time.time())
         self.last_active: float = time.time()
 
-        # Deep-copy config so permission_mode changes don't leak
+        # Deep-copy config so permission_mode changes don't leak.  The server
+        # config FILE (base_config) is the source of truth — DB rows only hold
+        # *explicit per-session overrides* (deltas), so changes to the config
+        # file are reflected on every reload.
+        #
+        # A stored value is honored as a real per-session override only when it
+        # differs from BOTH the live config file AND the original DEFAULTS in
+        # config.py.  Anything matching either is a creation-time default (the
+        # session was snapshotted at creation, not explicitly configured), so
+        # the session follows the file instead of being pinned to a stale
+        # copy.  This also transparently migrates legacy full-snapshot rows:
+        # the rewrite below drops the now-ignored keys, leaving a clean delta.
+        # Keys not in _CONFIG_OVERRIDE_KEYS (e.g. API-key style keys) are
+        # ignored on load so a stale snapshot can never clobber the live value.
+        from cheetahclaws.config import DEFAULTS
         base = copy.deepcopy(base_config)
+        self._loaded_overrides = {}
         if existing and existing.get("config"):
-            base.update(existing["config"])
+            stored = existing["config"]
+            # Legacy rows persisted a FULL snapshot at creation.  Such a
+            # snapshot always contains at least one key whose value matches
+            # either the current config file or the original DEFAULTS (e.g.
+            # max_tokens → 16000), whereas a genuine per-session override set
+            # only contains the few keys the user actually changed — and those
+            # differ from the file.  Detect that signature and discard the
+            # whole legacy snapshot, so the session follows the server config
+            # file instead of being pinned to a stale creation-time copy.
+            is_legacy = any(
+                k in _CONFIG_OVERRIDE_KEYS
+                and (v == base_config.get(k) or v == DEFAULTS.get(k))
+                for k, v in stored.items())
+            if is_legacy:
+                try:
+                    _db.repo.upsert_session(self.session_id, user_id, config={})
+                except Exception:  # noqa: BLE001
+                    pass
+            else:
+                for k, v in stored.items():
+                    if k in _CONFIG_OVERRIDE_KEYS and _is_real_override(
+                            k, v, base_config, DEFAULTS):
+                        base[k] = v
+                        self._loaded_overrides[k] = v
         self.config: dict = base
         self.config["_session_id"] = self.session_id
 
@@ -239,12 +307,13 @@ class ChatSession:
                                      if existing else [])
         self._msg_lock = threading.Lock()
 
-        # Persist (create-or-update) metadata
+        # Persist (create-or-update) metadata.  Only the explicit per-session
+        # override delta is stored (not the full config), so the server config
+        # file remains the source of truth and later file changes propagate.
         _db.repo.upsert_session(
             self.session_id, user_id,
             title=self.title,
-            config={k: v for k, v in self.config.items()
-                    if k in _SAFE_CONFIG_KEYS},
+            config=dict(getattr(self, "_loaded_overrides", {})),
         )
 
         self._init_runtime()
@@ -1075,8 +1144,14 @@ class ChatSession:
             return list(self.messages)
 
     def get_safe_config(self) -> dict:
+        # Reveal the EFFECTIVE config so the web UI shows the real value
+        # (e.g. the server config file's thinking/verbose/max_tokens) rather
+        # than only the keys this session explicitly overrode.
         result = {k: self.config.get(k) for k in _SAFE_CONFIG_KEYS
                   if k in self.config}
+        # Flag which keys were explicitly overridden for this session, so the
+        # UI could show an "inherited from server config" indicator if wanted.
+        result["overrides"] = dict(getattr(self, "_loaded_overrides", {}))
         # Show which providers have API keys configured (without revealing them)
         result["api_keys_configured"] = {
             provider: bool(self.config.get(cfg_key) or
@@ -1089,17 +1164,34 @@ class ChatSession:
         return result
 
     def update_config(self, updates: dict) -> dict:
+        from cheetahclaws.config import load_config, DEFAULTS
         for k, v in updates.items():
             if k in _WRITABLE_CONFIG_KEYS:
                 self.config[k] = v
+        # Persist only the *override delta* vs the live server config, so the
+        # DB never clobbers later config-file changes.  A key is dropped from
+        # the stored override set when its new value matches the file OR the
+        # original DEFAULTS (i.e. it is no longer an intentional per-session
+        # override distinct from the default).  API-key style keys are always
+        # persisted when written (handled below).
+        live = load_config()
+        self._loaded_overrides = getattr(self, "_loaded_overrides", {})
+        for k, v in updates.items():
+            if k not in _CONFIG_OVERRIDE_KEYS:
+                # Non-override keys (e.g. API keys): store verbatim.
+                self._loaded_overrides[k] = v
+                continue
+            if _is_real_override(k, v, live, DEFAULTS):
+                self._loaded_overrides[k] = v
+            else:
+                self._loaded_overrides.pop(k, None)
         # Persist non-secret config keys to DB (secrets stay session-only)
         try:
             from cheetahclaws.web import db as _db
             _db.repo.upsert_session(
                 self.session_id, self.user_id,
                 title=self.title,
-                config={k: v for k, v in self.config.items()
-                        if k in _SAFE_CONFIG_KEYS},
+                config=dict(self._loaded_overrides),
             )
         except Exception as exc:  # noqa: BLE001
             from cheetahclaws.web.logging_setup import get_logger
