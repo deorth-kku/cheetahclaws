@@ -1147,21 +1147,8 @@ class ChatSession:
         # Reveal the EFFECTIVE config so the web UI shows the real value
         # (e.g. the server config file's thinking/verbose/max_tokens) rather
         # than only the keys this session explicitly overrode.
-        result = {k: self.config.get(k) for k in _SAFE_CONFIG_KEYS
-                  if k in self.config}
-        # Flag which keys were explicitly overridden for this session, so the
-        # UI could show an "inherited from server config" indicator if wanted.
-        result["overrides"] = dict(getattr(self, "_loaded_overrides", {}))
-        # Show which providers have API keys configured (without revealing them)
-        result["api_keys_configured"] = {
-            provider: bool(self.config.get(cfg_key) or
-                          os.environ.get(cfg_key.upper(), ""))
-            for provider, cfg_key in _API_KEY_CONFIG_MAP.items()
-        }
-        result["custom_base_url"] = self.config.get("custom_base_url", "")
-        result["ollama_base_url"] = self.config.get("ollama_base_url",
-                                                     "http://localhost:11434")
-        return result
+        return _build_safe_config(
+            self.config, getattr(self, "_loaded_overrides", {}))
 
     def update_config(self, updates: dict) -> dict:
         from cheetahclaws.config import load_config, DEFAULTS
@@ -1212,6 +1199,29 @@ class ChatSession:
         from cheetahclaws import runtime
         runtime.release_session_ctx(self.session_id)
 
+def _build_safe_config(config: dict, overrides: dict) -> dict:
+    """Build a UI-safe config view from an effective ``config`` dict.
+
+    Shared by live sessions and the no-session default path (so the settings
+    panel shows the real server config file values on first load, before any
+    chat session exists). ``overrides`` documents which keys were explicitly
+    overridden for the session (empty for the no-session defaults).
+    """
+    result = {k: config.get(k) for k in _SAFE_CONFIG_KEYS
+              if k in config}
+    # Flag which keys were explicitly overridden for this session, so the
+    # UI could show an "inherited from server config" indicator if wanted.
+    result["overrides"] = dict(overrides)
+    # Show which providers have API keys configured (without revealing them)
+    result["api_keys_configured"] = {
+        provider: bool(config.get(cfg_key) or
+                      os.environ.get(cfg_key.upper(), ""))
+        for provider, cfg_key in _API_KEY_CONFIG_MAP.items()
+    }
+    result["custom_base_url"] = config.get("custom_base_url", "")
+    result["ollama_base_url"] = config.get("ollama_base_url",
+                                           "http://localhost:11434")
+    return result
 
 # ── Session registry ───────────────────────────────────────────────────────
 

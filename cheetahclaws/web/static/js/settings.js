@@ -83,13 +83,17 @@ Object.assign(ChatApp.prototype, {
   },
 
   async _loadSettings() {
-    if (this.sessionId) {
-      try {
-        const r = await this._fetchAuth(`/api/config?sid=${this.sessionId}`);
-        const cfg = await r.json();
-        this._renderConfig(cfg);
-      } catch(e) { console.error('loadSettings:', e); }
-    }
+    // Always load config (the endpoint returns the live server config-file
+    // defaults when no session exists, so the panel reflects reality on first
+    // open / welcome screen rather than showing zero/placeholder values).
+    try {
+      const url = this.sessionId
+        ? `/api/config?sid=${encodeURIComponent(this.sessionId)}`
+        : '/api/config';
+      const r = await this._fetchAuth(url);
+      const cfg = await r.json();
+      this._renderConfig(cfg);
+    } catch(e) { console.error('loadSettings:', e); }
     try {
       const r = await this._fetchAuth('/api/models');
       const data = await r.json();

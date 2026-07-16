@@ -1958,15 +1958,22 @@ def _handle_connection(sock: socket.socket, addr: tuple) -> None:
             uid = _require_user(sock, cookie, origin)
             if uid is None:
                 return
-            from cheetahclaws.web.api import get_chat_session
+            from cheetahclaws.web.api import get_chat_session, _build_safe_config
             from cheetahclaws.config import load_config
             sid = body_json.get("session_id", "") or \
                   (query.split("sid=")[1].split("&")[0]
                    if "sid=" in query else "")
             chat_sess = get_chat_session(sid, uid, load_config()) if sid else None
-            if method == "GET" and chat_sess:
-                _send_json(sock, chat_sess.get_safe_config(),
-                           request_origin=origin)
+            if method == "GET":
+                if chat_sess:
+                    _send_json(sock, chat_sess.get_safe_config(),
+                               request_origin=origin)
+                else:
+                    # No session yet (e.g. first page load / welcome screen):
+                    # return the live server config file so the settings panel
+                    # reflects it instead of showing zero/placeholder values.
+                    _send_json(sock, _build_safe_config(load_config(), {}),
+                               request_origin=origin)
             elif method == "PATCH" and chat_sess:
                 updated = chat_sess.update_config(body_json.get("config", {}))
                 _send_json(sock, updated, request_origin=origin)
