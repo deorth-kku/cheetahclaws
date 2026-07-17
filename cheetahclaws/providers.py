@@ -1110,7 +1110,12 @@ def messages_to_openai(messages: list, ollama_native_images: bool = False) -> li
 # ── Streaming adapters ─────────────────────────────────────────────────────
 
 class TextChunk:
-    def __init__(self, text): self.text = text
+    def __init__(self, text, kind=None):
+        self.text = text
+        # kind=None  → normal assistant text (streamed into the answer bubble)
+        # kind="notice" → system/retry diagnostic (rendered as a distinct
+        #                 output in the web UI, kept out of the answer text)
+        self.kind = kind
 
 class ThinkingChunk:
     def __init__(self, text): self.text = text

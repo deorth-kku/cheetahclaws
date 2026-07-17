@@ -260,7 +260,7 @@ def run(
             except _CircuitOpenError as e:
                 _log.warn("circuit_open_skip", session_id=session_id,
                           error=str(e)[:200])
-                yield TextChunk(f"\n[{e}]\n")
+                yield TextChunk(f"\n[{e}]\n", kind="error")
                 return  # circuit manages its own cooldown — don't retry
 
             except Exception as e:
@@ -288,7 +288,8 @@ def run(
                         yield TextChunk(
                             f"\n[NIM rate-limited on {_old} — switching to "
                             f"{_new} ({_nim_fallbacks_used}/"
-                            f"{_NIM_FALLBACK_LIMIT})]\n"
+                            f"{_NIM_FALLBACK_LIMIT})]\n",
+                            kind="notice",
                         )
                         continue   # retry without consuming attempt budget
 
@@ -298,7 +299,7 @@ def run(
                                category=cerr.category.value,
                                error=_truncate_err(str(e)))
                     hint = f" Hint: {cerr.hint}" if cerr.hint else ""
-                    yield TextChunk(f"\n[Failed — {type(e).__name__}: {_truncate_err(str(e))}.{hint}]\n")
+                    yield TextChunk(f"\n[Failed — {type(e).__name__}: {_truncate_err(str(e))}.{hint}]\n", kind="error")
                     break
 
                 if cerr.should_compress:
@@ -325,11 +326,12 @@ def run(
                             yield TextChunk(
                                 f"\n[Context overflow — reducing output cap "
                                 f"{old_cap}→{new_cap} and retrying (attempt "
-                                f"{attempt+1}/{max_retries})]\n"
+                                f"{attempt+1}/{max_retries})]\n",
+                                kind="notice",
                             )
                             continue
                     _force_compact(state, config)
-                    yield TextChunk(f"\n[Context too long — compacted and retrying (attempt {attempt+1}/{max_retries})]\n")
+                    yield TextChunk(f"\n[Context too long — compacted and retrying (attempt {attempt+1}/{max_retries})]\n", kind="notice")
                     continue
 
                 backoff = int(2 ** (attempt + 1) * cerr.backoff_multiplier)
@@ -340,7 +342,7 @@ def run(
                           error_type=type(e).__name__,
                           error=_truncate_err(str(e)),
                           backoff_s=backoff)
-                yield TextChunk(f"\n[Retry {attempt+1}/{max_retries} after {backoff}s — {cerr.category.value}: {_truncate_err(str(e))}]\n")
+                yield TextChunk(f"\n[Retry {attempt+1}/{max_retries} after {backoff}s — {cerr.category.value}: {_truncate_err(str(e))}]\n", kind="notice")
                 time.sleep(backoff)
 
         if assistant_turn is None:

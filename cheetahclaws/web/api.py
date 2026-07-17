@@ -31,8 +31,8 @@ if _PKG_ROOT not in sys.path:
 class ChatEvent:
     """JSON-serializable event sent to browser via WebSocket."""
     type: str       # text_chunk | thinking_chunk | tool_start | tool_end |
-                    # permission_request | permission_response | turn_done |
-                    # error | status
+                    # notice | permission_request | permission_response |
+                    # turn_done | error | status
     data: dict = field(default_factory=dict)
     ts: float = field(default_factory=time.time)
 
@@ -973,16 +973,29 @@ class ChatSession:
             for event in run(prompt, self._agent_state, self.config,
                              system_prompt, cancel_check=self._cancelled.is_set):
                 if isinstance(event, TextChunk):
-                    text_chunks.append(event.text)
-                    self._broadcast(ChatEvent("text_chunk",
-                                              {"text": event.text}))
-                    # Accumulate into the current text block so contiguous
-                    # text stays merged but tool calls split it into separate
-                    # blocks (preserving interleaving on reload).
-                    if _cur_block is None or _cur_block["type"] != "text":
-                        _cur_block = {"type": "text", "text": ""}
-                        blocks.append(_cur_block)
-                    _cur_block["text"] += event.text
+                    if event.kind:
+                        # System / retry diagnostic (kind="notice"/"error").
+                        # Broadcast as a DISTINCT `notice` event and keep it
+                        # OUT of the assistant answer text + current text block
+                        # so the web UI renders it as its own output (not
+                        # merged into the reply bubble above a thinking block).
+                        blocks.append({"type": "notice",
+                                       "text": event.text,
+                                       "kind": event.kind})
+                        self._broadcast(ChatEvent("notice",
+                                                  {"text": event.text,
+                                                   "kind": event.kind}))
+                    else:
+                        text_chunks.append(event.text)
+                        self._broadcast(ChatEvent("text_chunk",
+                                                  {"text": event.text}))
+                        # Accumulate into the current text block so contiguous
+                        # text stays merged but tool calls split it into separate
+                        # blocks (preserving interleaving on reload).
+                        if _cur_block is None or _cur_block["type"] != "text":
+                            _cur_block = {"type": "text", "text": ""}
+                            blocks.append(_cur_block)
+                        _cur_block["text"] += event.text
 
                 elif isinstance(event, ThinkingChunk):
                     self._broadcast(ChatEvent("thinking_chunk",

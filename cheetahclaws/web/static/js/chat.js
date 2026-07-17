@@ -58,6 +58,9 @@ class ChatApp {
       for (const b of blocks) {
         if (b.type === 'text') {
           if (b.text && b.text.trim()) this._addAssistantBubble(b.text);
+        } else if (b.type === 'notice') {
+          // Read-only history replay: same distinct output as live streaming.
+          this._appendNotice(b.text, b.kind);
         } else if (b.type === 'thinking') {
           // Persisted reasoning trace (post-refresh). Render as the same
           // finalized, collapsible thinking block shown during live streaming.
@@ -425,6 +428,14 @@ class ChatApp {
         this._removeActivity();
         this._appendThinking(evt.data.text || '');
         break;
+      case 'notice':
+        // System / retry diagnostic — a DISTINCT output type, rendered as its
+        // own block. Does NOT touch _textBuf / _curMsgEl, so a later answer
+        // bubble stays separate (below any thinking block) instead of merging
+        // into this notice above it.
+        this._removeActivity();
+        this._appendNotice(evt.data.text || '', evt.data.kind || '');
+        break;
       case 'tool_start':
         this._removeActivity();
         // A tool call ends the current reasoning phase. Collapse the trace
@@ -630,6 +641,21 @@ class ChatApp {
     const el = document.createElement('div');
     el.style.cssText = 'color:var(--red);font-size:13px;padding:8px 12px;background:var(--red-dim);border-radius:var(--radius-sm);margin:8px 0;max-width:min(640px,90%)';
     el.textContent = msg;
+    document.getElementById('messages').appendChild(el);
+    this._scrollBottom();
+  }
+
+  // Render a system / retry notice as a distinct block (its own output type),
+  // never merged into the assistant answer bubble.
+  _appendNotice(text, kind) {
+    if (!text || !text.trim()) return;
+    const el = document.createElement('div');
+    el.className = 'notice-block' + (kind === 'error' ? ' error' : '');
+    const label = document.createElement('span');
+    label.className = 'notice-label';
+    label.textContent = kind === 'error' ? 'Error' : 'Notice';
+    el.appendChild(label);
+    el.appendChild(document.createTextNode(text.trim()));
     document.getElementById('messages').appendChild(el);
     this._scrollBottom();
   }

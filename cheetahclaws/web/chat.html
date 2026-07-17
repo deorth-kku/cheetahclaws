@@ -444,6 +444,25 @@ body.resizing { cursor:col-resize; user-select:none; }
 }
 @keyframes think { 0%{transform:translateX(-100%)} 100%{transform:translateX(400%)} }
 
+/* ── System / retry notice block ────────────────────────────── */
+/* Distinct from the assistant answer bubble: rendered as its own
+ * output so it never merges into the reply above a thinking block. */
+.notice-block {
+  max-width:min(720px,92%); margin:8px 0; align-self:flex-start;
+  border:1px solid var(--border); border-left:3px solid var(--yellow);
+  border-radius:var(--radius-sm); background:var(--surface);
+  padding:8px 12px; font-size:12px; color:var(--text-dim);
+  font-family:var(--mono); white-space:pre-wrap; line-height:1.5;
+  animation:fadeIn .2s ease;
+}
+.notice-block .notice-label {
+  display:block; font-family:var(--font); font-size:10px;
+  text-transform:uppercase; letter-spacing:.5px; color:var(--yellow);
+  font-weight:600; margin-bottom:3px;
+}
+.notice-block.error { border-left-color:var(--red); }
+.notice-block.error .notice-label { color:var(--red); }
+
 /* ── Thinking trace block ─────────────────────────────────────── */
 .thinking-block {
   max-width:min(720px,92%); margin:8px 0; align-self:flex-start;
