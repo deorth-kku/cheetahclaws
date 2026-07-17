@@ -598,15 +598,17 @@ class ChatSession:
     # ── Subscriber management ──────────────────────────────────────────
 
     def subscribe(self) -> queue.Queue:
-        """Add a subscriber and replay any buffered events."""
+        """Add a subscriber.
+
+        We deliberately do NOT replay ``_event_buffer`` here.  The DB now holds
+        the full (and partially-streamed) conversation — a reconnecting client
+        re-renders it from ``GET /api/sessions`` before opening the WS — so
+        replaying buffered live events would duplicate the already-persisted
+        thinking/tool blocks.  Live events emitted *after* subscribe() still
+        reach the client via the per-subscriber queue below.
+        """
         q: queue.Queue = queue.Queue(maxsize=2000)
         with self._sub_lock:
-            # Replay buffered events so late-joiners don't miss anything
-            for evt in self._event_buffer:
-                try:
-                    q.put_nowait(evt)
-                except queue.Full:
-                    break
             self._subscribers.append(q)
         return q
 
@@ -1106,6 +1108,74 @@ class ChatSession:
                 _orig_web_broadcast(event)
         ctx.web_broadcast = _web_broadcast_blocker
 
+        # ── Incremental persistence of the in-progress turn ──────────────
+        # The whole assistant turn is now written to the DB as it streams
+        # (not only at TurnDone), so a page refresh or a new viewer mid-run
+        # can reconstruct the partial conversation from the DB alone — no
+        # client round-trip required.  We lazily create one assistant row on
+        # the first streamed event, then patch its content + ordered blocks
+        # on every subsequent event.
+        _live_mid: Optional[int] = None
+        _live_msg: Optional[dict] = None
+
+        def _ensure_live():
+            nonlocal _live_mid, _live_msg
+            if _live_mid is not None:
+                return
+            try:
+                from cheetahclaws.web import db as _db
+                mid = _db.repo.append_message(self.session_id, "assistant", "")
+                _live_msg = {"role": "assistant", "content": "",
+                             "blocks": [], "id": mid}
+                _live_mid = mid
+                with self._msg_lock:
+                    self.messages.append(_live_msg)
+            except Exception as exc:  # noqa: BLE001
+                from cheetahclaws.web.logging_setup import get_logger
+                get_logger("api").exception(
+                    "live message row create failed",
+                    extra={"session_id": self.session_id, "err": str(exc)})
+
+        def _flush_live():
+            if _live_mid is None or _live_msg is None:
+                return
+            _final_text = "".join(text_chunks)
+            _clean = [b for b in blocks if not (
+                b.get("type") == "text" and not (b.get("text") or "").strip()
+            )]
+            _live_msg["content"] = _final_text
+            _live_msg["blocks"] = _clean
+            try:
+                from cheetahclaws.web import db as _db
+                _db.repo.update_message(_live_mid, _final_text, None,
+                                        _clean or None)
+            except Exception as exc:  # noqa: BLE001
+                from cheetahclaws.web.logging_setup import get_logger
+                get_logger("api").exception(
+                    "live message row update failed",
+                    extra={"session_id": self.session_id, "err": str(exc)})
+
+        def _drop_live():
+            """Delete an abandoned in-progress assistant row (e.g. a turn that
+            errored or yielded nothing), and remove it from the in-memory
+            cache so it never reaches the UI."""
+            nonlocal _live_mid, _live_msg
+            if _live_mid is None:
+                return
+            try:
+                from cheetahclaws.web import db as _db
+                _db.repo.delete_message(_live_mid)
+            except Exception:  # noqa: BLE001
+                pass
+            if _live_msg is not None:
+                with self._msg_lock:
+                    try:
+                        self.messages.remove(_live_msg)
+                    except ValueError:
+                        pass
+            _live_mid = None
+            _live_msg = None
+
         try:
             for event in run(prompt, self._agent_state, self.config,
                              system_prompt, cancel_check=self._cancelled.is_set,
@@ -1125,6 +1195,9 @@ class ChatSession:
                                                    "kind": event.kind}))
                     else:
                         text_chunks.append(event.text)
+                        # Persist the in-progress turn so a reconnect mid-run
+                        # can replay the partial thinking/answer from the DB.
+                        _ensure_live()
                         self._broadcast(ChatEvent("text_chunk",
                                                   {"text": event.text}))
                         # Accumulate into the current text block so contiguous
@@ -1136,6 +1209,11 @@ class ChatSession:
                         _cur_block["text"] += event.text
 
                 elif isinstance(event, ThinkingChunk):
+                    # Persist the in-progress turn so a reconnect mid-run can
+                    # replay the partial reasoning trace from the DB.
+                    _ensure_live()
+                    if blocks:
+                        _flush_live()
                     self._broadcast(ChatEvent("thinking_chunk",
                                               {"text": event.text}))
                     # Accumulate the reasoning trace into a `thinking` block.
@@ -1159,6 +1237,9 @@ class ChatSession:
                     blocks.append(tc_block)
                     _cur_block = tc_block  # next text starts a new block
                     tool_calls.append(tc_block)
+                    # Persist the tool card so a reconnect mid-run shows it.
+                    _ensure_live()
+                    _flush_live()
                     self._broadcast(ChatEvent("tool_start", {
                         "name": event.name,
                         "inputs": event.inputs,
@@ -1204,6 +1285,10 @@ class ChatSession:
                         tc["status"] = "done" if event.permitted else "denied"
                         tc["result"] = event.result[:2000] if event.result else ""
                         break
+                    # Persist the completed tool card so a reconnect mid-run
+                    # (after a refresh) shows the result instead of vanishing.
+                    _ensure_live()
+                    _flush_live()
                     self._broadcast(ChatEvent("tool_end", {
                         "name": event.name,
                         "result": event.result[:2000] if event.result else "",
@@ -1212,24 +1297,27 @@ class ChatSession:
                     }))
 
                 elif isinstance(event, TurnDone):
+                    # Final flush of the in-progress turn before signalling
+                    # completion — guarantees the DB reflects the finished
+                    # turn (cleans up any trailing empty text block too).
+                    _flush_live()
                     self._broadcast(ChatEvent("turn_done", {
                         "input_tokens": event.input_tokens,
                         "output_tokens": event.output_tokens,
                     }))
 
-            # Store assistant response in history
-            final_text = "".join(text_chunks)
-            msg: dict = {"role": "assistant", "content": final_text}
-            # Persist ordered blocks (text/tool/ask) so interleaving survives
-            # a refresh. Drop leading/trailing empty text blocks for cleanliness.
-            _clean_blocks = [b for b in blocks if not (
-                b.get("type") == "text" and not (b.get("text") or "").strip()
-            )]
-            if _clean_blocks:
-                msg["blocks"] = _clean_blocks
-            elif tool_calls:
-                msg["tool_calls"] = tool_calls
-            self._append_msg(msg, blocks=_clean_blocks or None)
+            # The assistant turn was streamed into the DB incrementally above.
+            # A final flush here guarantees the row reflects the completed turn
+            # (and also covers the degenerate case where the turn produced no
+            # streamed events at all — nothing to clean up).
+            if _live_mid is not None:
+                _flush_live()
+                # Drop a row that ended up empty (no text and no blocks), so a
+                # reconnect doesn't render a blank assistant bubble.
+                if _live_msg is not None and not (
+                        _live_msg.get("content")
+                        or _live_msg.get("blocks")):
+                    _drop_live()
 
         except Exception as exc:
             self._broadcast(ChatEvent("error", {"message": str(exc)}))

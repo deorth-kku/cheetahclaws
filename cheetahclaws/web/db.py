@@ -422,6 +422,40 @@ class repo:
             return m.id
 
     @staticmethod
+    def update_message(mid: int, content: str,
+                       tool_calls: Optional[list] = None,
+                       blocks: Optional[list] = None) -> None:
+        """Patch an existing message row in place.
+
+        Used for incremental persistence of an in-progress agent turn: the
+        content + ordered blocks are rewritten as the turn streams, so a page
+        refresh mid-run can reconstruct the partial conversation from the DB
+        alone (no client round-trip required).
+        """
+        with session_scope() as db:
+            m = db.get(Message, mid)
+            if m is None:
+                return
+            m.content = content
+            if tool_calls is not None:
+                m.tool_calls_json = (json.dumps(tool_calls)
+                                     if tool_calls else None)
+            if blocks is not None:
+                m.blocks_json = json.dumps(blocks) if blocks else None
+            sess = db.get(ChatSessionRow, m.session_id)
+            if sess:
+                sess.last_active = time.time()
+
+    @staticmethod
+    def delete_message(mid: int) -> None:
+        """Remove a message row (e.g. an abandoned in-progress assistant turn
+        that produced no output)."""
+        with session_scope() as db:
+            m = db.get(Message, mid)
+            if m is not None:
+                db.delete(m)
+
+    @staticmethod
     def get_messages(session_id: str) -> list[dict]:
         with session_scope() as db:
             rows = db.scalars(
