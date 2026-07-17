@@ -1,6 +1,8 @@
 """Context window management: two-layer compression for long conversations."""
 from __future__ import annotations
 
+from typing import Callable, Optional
+
 from cheetahclaws import providers
 
 
@@ -253,7 +255,8 @@ def sanitize_history(messages: list) -> list:
     return cleaned
 
 
-def compact_messages(messages: list, config: dict, focus: str = "") -> list:
+def compact_messages(messages: list, config: dict, focus: str = "",
+                     on_compact: Optional[Callable] = None) -> list:
     """Compress old messages into a summary via LLM call.
 
     Splits at find_split_point, summarizes old portion, returns
@@ -263,6 +266,9 @@ def compact_messages(messages: list, config: dict, focus: str = "") -> list:
         messages: full message list
         config: agent config dict (must contain "model")
         focus: optional focus instructions for the summarizer
+        on_compact: optional callback invoked as
+            ``on_compact(summary_text, ack_text, split)`` when a summary is
+            actually produced, so callers can persist the compaction.
     Returns:
         new compacted message list
     """
@@ -314,20 +320,33 @@ def compact_messages(messages: list, config: dict, focus: str = "") -> list:
     if not summary_text or not summary_text.strip():
         return messages
 
+    ack_text = ("Understood. I have the context from the previous "
+                "conversation. Let's continue.")
     summary_msg = {
         "role": "user",
         "content": f"[Previous conversation summary]\n{summary_text}",
     }
     ack_msg = {
         "role": "assistant",
-        "content": "Understood. I have the context from the previous conversation. Let's continue.",
+        "content": ack_text,
     }
-    return [summary_msg, ack_msg, *recent]
+    result = [summary_msg, ack_msg, *recent]
+    if on_compact is not None:
+        try:
+            on_compact(summary_text, ack_text, split)
+        except Exception as _e:
+            # Persisting compaction must never break the agent loop.
+            try:
+                from cheetahclaws import logging_utils as _log
+                _log.warn("on_compact_failed", error=str(_e)[:200])
+            except Exception:
+                pass
+    return result
 
 
 # ── Main entry ────────────────────────────────────────────────────────────
 
-def maybe_compact(state, config: dict) -> bool:
+def maybe_compact(state, config: dict, on_compact: Optional[Callable] = None) -> bool:
     """Check if context window is getting full and compress if needed.
 
     Runs snip_old_tool_results first, then auto-compact if still over threshold.
@@ -335,6 +354,7 @@ def maybe_compact(state, config: dict) -> bool:
     Args:
         state: AgentState with .messages list
         config: agent config dict (must contain "model")
+        on_compact: optional callback persisted through to compact_messages
     Returns:
         True if compaction was performed
     """
@@ -352,7 +372,8 @@ def maybe_compact(state, config: dict) -> bool:
         return True
 
     # Layer 2: auto-compact
-    state.messages = compact_messages(state.messages, config)
+    state.messages = compact_messages(state.messages, config,
+                                      on_compact=on_compact)
     state.messages.extend(_restore_plan_context(config))
     return True
 
@@ -380,7 +401,8 @@ def _restore_plan_context(config: dict) -> list:
 
 # ── Manual compact ───────────────────────────────────────────────────────
 
-def manual_compact(state, config: dict, focus: str = "") -> tuple[bool, str]:
+def manual_compact(state, config: dict, focus: str = "",
+                   on_compact: Optional[Callable] = None) -> tuple[bool, str]:
     """User-triggered compaction via /compact. Not gated by threshold.
 
     Returns (success, info_message).
@@ -390,7 +412,8 @@ def manual_compact(state, config: dict, focus: str = "") -> tuple[bool, str]:
 
     before = estimate_tokens(state.messages)
     snip_old_tool_results(state.messages)
-    state.messages = compact_messages(state.messages, config, focus=focus)
+    state.messages = compact_messages(state.messages, config, focus=focus,
+                                      on_compact=on_compact)
     state.messages.extend(_restore_plan_context(config))
     after = estimate_tokens(state.messages)
     saved = before - after

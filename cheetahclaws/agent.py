@@ -82,6 +82,7 @@ def run(
     system_prompt: str,
     depth: int = 0,
     cancel_check=None,
+    on_compact=None,
 ) -> Generator:
     """
     Multi-turn agent loop (generator).
@@ -91,6 +92,8 @@ def run(
     Args:
         depth: sub-agent nesting depth, 0 for top-level
         cancel_check: callable returning True to abort the loop early
+        on_compact: optional callback persisted through to compaction so
+            callers can persist the compacted history
     """
     # Append user turn in neutral format
     user_msg = {"role": "user", "content": user_message}
@@ -160,7 +163,7 @@ def run(
 
         # Compact context if approaching window limit
         try:
-            maybe_compact(state, config)
+            maybe_compact(state, config, on_compact=on_compact)
         except Exception as _compact_err:
             _log.warn("compact_failed", error=str(_compact_err))
 
@@ -330,7 +333,7 @@ def run(
                                 kind="notice",
                             )
                             continue
-                    _force_compact(state, config)
+                    _force_compact(state, config, on_compact=on_compact)
                     yield TextChunk(f"\n[Context too long — compacted and retrying (attempt {attempt+1}/{max_retries})]\n", kind="notice")
                     continue
 
@@ -724,7 +727,8 @@ def _permission_desc(tc: dict) -> str:
     return f"{name}({list(inp.values())[:1]})"
 
 
-def _force_compact(state: AgentState, config: dict) -> bool:
+def _force_compact(state: AgentState, config: dict,
+                   on_compact=None) -> bool:
     """Force compaction regardless of threshold. Used when API rejects for context too long."""
     limit = get_context_limit(config.get("model", ""), config)
     before = estimate_tokens(state.messages)
@@ -734,7 +738,8 @@ def _force_compact(state: AgentState, config: dict) -> bool:
     snip_old_tool_results(state.messages, max_chars=1000, preserve_last_n_turns=3)
     if estimate_tokens(state.messages) < limit * 0.9:
         return True
-    state.messages = compact_messages(state.messages, config)
+    state.messages = compact_messages(state.messages, config,
+                                      on_compact=on_compact)
     from cheetahclaws.compaction import _restore_plan_context
     state.messages.extend(_restore_plan_context(config))
     after = estimate_tokens(state.messages)

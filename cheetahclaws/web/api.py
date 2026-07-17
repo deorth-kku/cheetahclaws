@@ -120,7 +120,7 @@ def _get_web_commands() -> dict:
     return cmds
 
 
-def _web_handle_slash(line: str, state, config):
+def _web_handle_slash(line: str, state, config, on_compact=None):
     """Handle /command. Returns True if handled, or sentinel tuple."""
     if not line.startswith("/"):
         return False
@@ -132,7 +132,10 @@ def _web_handle_slash(line: str, state, config):
     commands = _get_web_commands()
     handler = commands.get(cmd)
     if handler:
-        result = handler(args, state, config)
+        if cmd == "compact" and on_compact is not None:
+            result = handler(args, state, config, on_compact=on_compact)
+        else:
+            result = handler(args, state, config)
         # Sentinel tuples need special handling by the caller
         _SENTINELS = ("__voice__", "__image__", "__brainstorm__", "__worker__",
                       "__ssj_cmd__", "__ssj_query__", "__ssj_debate__",
@@ -302,8 +305,10 @@ class ChatSession:
         # Stop signal — set by request_stop() (Stop button / WS "stop" msg).
         self._cancelled = threading.Event()
 
-        # Message history for UI replay on reconnect (hydrated from DB)
-        self.messages: list[dict] = (_db.repo.get_messages(self.session_id)
+        # Message history for UI replay on reconnect (hydrated from DB).
+        # UI view excludes compaction rows, so the chat history always shows
+        # the full real conversation.
+        self.messages: list[dict] = (_db.repo.get_messages_for_ui(self.session_id)
                                      if existing else [])
         self._msg_lock = threading.Lock()
 
@@ -330,10 +335,13 @@ class ChatSession:
         # AgentState.messages, so without rehydrating it the agent "forgets"
         # everything after a server restart even though the UI shows the
         # history.  Rebuild the neutral message list from the persisted rows.
-        if self.messages:
+        # Use the agent view (compact block + rows after the boundary) so the
+        # compaction survives a restart instead of being silently lost and
+        # re-inflating the context window.
+        if existing:
             try:
                 self._agent_state.messages = self._messages_to_neutral(
-                    self.messages)
+                    _db.repo.get_messages_for_agent(self.session_id))
             except Exception as exc:  # noqa: BLE001
                 from cheetahclaws.web.logging_setup import get_logger
                 get_logger("api").exception(
@@ -368,90 +376,7 @@ class ChatSession:
 
         neutral: list[dict] = []
         for m in db_messages:
-            role = m.get("role")
-            if role == "user":
-                nm: dict = {"role": "user",
-                            "content": m.get("content", "")}
-                if m.get("images"):
-                    nm["images"] = m["images"]
-                neutral.append(nm)
-                continue
-
-            if role != "assistant":
-                # Shouldn't happen at this layer, but keep it safe.
-                neutral.append({"role": role,
-                                "content": m.get("content", "")})
-                continue
-
-            text_parts: list[str] = []
-            tool_calls: list[dict] = []
-            tool_results: list[dict] = []
-
-            blocks = m.get("blocks")
-            if isinstance(blocks, list) and blocks:
-                for b in blocks:
-                    btype = b.get("type")
-                    if btype == "text":
-                        if b.get("text"):
-                            text_parts.append(b["text"])
-                    elif btype == "tool":
-                        tid = (b.get("tool_id") or b.get("id")
-                               or f"tool_{len(tool_calls)}")
-                        tool_calls.append({
-                            "id":   tid,
-                            "name": b.get("name", ""),
-                            "input": b.get("inputs") or {},
-                            "type": "function",
-                        })
-                        # Only pair a tool_result for completed calls; dropped
-                        # or unanswered calls are cleaned by sanitize_history.
-                        if b.get("status") in ("done", "denied") \
-                                and "result" in b:
-                            tool_results.append({
-                                "role":         "tool",
-                                "tool_call_id": tid,
-                                "name":         b.get("name", ""),
-                                "content":      b.get("result") or "",
-                            })
-                    # "ask" blocks have no neutral representation needed to
-                    # continue the conversation (the question was already
-                    # answered); skip to keep tool_call pairing valid.
-                if not text_parts and not tool_calls:
-                    content = m.get("content", "")
-                    if content:
-                        text_parts.append(content)
-            else:
-                # Legacy rows: flat tool_calls list, no blocks.
-                tcs = m.get("tool_calls")
-                if isinstance(tcs, list) and tcs:
-                    for tc in tcs:
-                        tid = (tc.get("id") or tc.get("tool_id")
-                               or f"tool_{len(tool_calls)}")
-                        tool_calls.append({
-                            "id":    tid,
-                            "name":  tc.get("name", ""),
-                            "input": tc.get("inputs") or tc.get("input")
-                                     or {},
-                            "type":  "function",
-                        })
-                        if tc.get("status") in ("done", "denied") \
-                                and "result" in tc:
-                            tool_results.append({
-                                "role":         "tool",
-                                "tool_call_id": tid,
-                                "name":         tc.get("name", ""),
-                                "content":      tc.get("result") or "",
-                            })
-                content = m.get("content", "")
-                if content:
-                    text_parts.append(content)
-
-            msg: dict = {"role": "assistant",
-                         "content": "".join(text_parts)}
-            if tool_calls:
-                msg["tool_calls"] = tool_calls
-            neutral.append(msg)
-            neutral.extend(tool_results)
+            neutral.extend(ChatSession._neutralize_one(m))
 
         # Drop any orphan tool_results / unanswered tool_calls so the
         # reconstructed history is valid for the next API call.
@@ -460,6 +385,213 @@ class ChatSession:
         except Exception:
             pass
         return neutral
+
+    @staticmethod
+    def _neutralize_one(m: dict) -> list[dict]:
+        """Convert a single persisted turn row into its neutral messages.
+
+        Mirrors the per-row logic of :meth:`_messages_to_neutral` but returns
+        the messages for one row (without the final sanitize pass), so callers
+        can track each row's position in the neutral stream.
+        """
+        role = m.get("role")
+        if role == "user":
+            nm: dict = {"role": "user", "content": m.get("content", "")}
+            if m.get("images"):
+                nm["images"] = m["images"]
+            return [nm]
+
+        if role != "assistant":
+            # Shouldn't happen at this layer, but keep it safe.
+            return [{"role": role, "content": m.get("content", "")}]
+
+        text_parts: list[str] = []
+        tool_calls: list[dict] = []
+        tool_results: list[dict] = []
+
+        blocks = m.get("blocks")
+        if isinstance(blocks, list) and blocks:
+            for b in blocks:
+                btype = b.get("type")
+                if btype == "text":
+                    if b.get("text"):
+                        text_parts.append(b["text"])
+                elif btype == "tool":
+                    tid = (b.get("tool_id") or b.get("id")
+                           or f"tool_{len(tool_calls)}")
+                    tool_calls.append({
+                        "id":   tid,
+                        "name": b.get("name", ""),
+                        "input": b.get("inputs") or {},
+                        "type": "function",
+                    })
+                    # Only pair a tool_result for completed calls; dropped
+                    # or unanswered calls are cleaned by sanitize_history.
+                    if b.get("status") in ("done", "denied") \
+                            and "result" in b:
+                        tool_results.append({
+                            "role":         "tool",
+                            "tool_call_id": tid,
+                            "name":         b.get("name", ""),
+                            "content":      b.get("result") or "",
+                        })
+                # "ask" blocks have no neutral representation needed to
+                # continue the conversation (the question was already
+                # answered); skip to keep tool_call pairing valid.
+            if not text_parts and not tool_calls:
+                content = m.get("content", "")
+                if content:
+                    text_parts.append(content)
+        else:
+            # Legacy rows: flat tool_calls list, no blocks.
+            tcs = m.get("tool_calls")
+            if isinstance(tcs, list) and tcs:
+                for tc in tcs:
+                    tid = (tc.get("id") or tc.get("tool_id")
+                           or f"tool_{len(tool_calls)}")
+                    tool_calls.append({
+                        "id":    tid,
+                        "name":  tc.get("name", ""),
+                        "input": tc.get("inputs") or tc.get("input")
+                                 or {},
+                        "type":  "function",
+                    })
+                    if tc.get("status") in ("done", "denied") \
+                            and "result" in tc:
+                        tool_results.append({
+                            "role":         "tool",
+                            "tool_call_id": tid,
+                            "name":         tc.get("name", ""),
+                            "content":      tc.get("result") or "",
+                        })
+            content = m.get("content", "")
+            if content:
+                text_parts.append(content)
+
+        msg: dict = {"role": "assistant",
+                     "content": "".join(text_parts)}
+        if tool_calls:
+            msg["tool_calls"] = tool_calls
+        out: list[dict] = [msg]
+        out.extend(tool_results)
+        return out
+
+    # ── Compaction persistence ──────────────────────────────────────────
+    # The DB is the single canonical store: it holds the full real history
+    # plus a synthetic "compact" block. Two read projections derive from it:
+    #   * UI / chat history  -> get_messages_for_ui  (ignores compact rows)
+    #   * AgentState         -> get_messages_for_agent (ignores real rows
+    #                           before the compact block)
+    # _on_compact is the write side: when the agent compacts, it maps the
+    # neutral split index to a DB row boundary and persists the block.
+
+    @staticmethod
+    def _msg_sig(m: dict) -> tuple:
+        """Coarse signature for matching neutral messages across the two
+        representations. Ignores tool-result *content* (which snip_old_tool_
+        results truncates in AgentState but not in the DB) and compares role
+        + tool_call_id / tool_calls names instead."""
+        role = m.get("role")
+        if role == "tool":
+            return ("tool", m.get("tool_call_id"), m.get("name"))
+        if role == "assistant":
+            tcs = m.get("tool_calls") or []
+            return ("assistant", m.get("content", ""),
+                    tuple(t.get("name") for t in tcs))
+        return (role, m.get("content", ""))
+
+    @staticmethod
+    def _reconstruct_with_starts(rows: list[dict]) -> tuple:
+        """Reconstruct the neutral stream from real rows and record each row's
+        starting index (before the final sanitize pass)."""
+        R: list[dict] = []
+        row_starts: list[int] = []
+        for m in rows:
+            row_starts.append(len(R))
+            R.extend(ChatSession._neutralize_one(m))
+        return R, row_starts
+
+    @staticmethod
+    def _find_recent_start(R: list[dict], recent: list[dict]) -> Optional[int]:
+        """Find the neutral index where ``recent`` begins within ``R``.
+
+        ``recent`` is a suffix of the pre-compaction AgentState. We locate it
+        by an exact signature match (scanned from the end), with a fallback
+        that anchors on the last message (robust to an inner orphan dropped by
+        sanitize).
+        """
+        L = len(recent)
+        n = len(R)
+        if L == 0 or L > n:
+            return None
+        for p in range(n - L, -1, -1):
+            ok = True
+            for j in range(L):
+                if ChatSession._msg_sig(R[p + j]) != ChatSession._msg_sig(recent[j]):
+                    ok = False
+                    break
+            if ok:
+                return p
+        last_sig = ChatSession._msg_sig(recent[-1])
+        for k in range(n - 1, -1, -1):
+            if ChatSession._msg_sig(R[k]) == last_sig:
+                p = k - (L - 1)
+                return p if p >= 0 else 0
+        return None
+
+    @staticmethod
+    def _compute_after_id(rows: list[dict], state_messages: list[dict],
+                          split: int) -> Optional[int]:
+        """Map a neutral ``split`` index (into ``state_messages``, the
+        pre-compaction AgentState) to the DB id of the last real row that was
+        summarized. Returns ``None`` if nothing should be dropped.
+
+        ``rows`` is the in-memory real-history cache (one dict per turn, each
+        carrying its DB ``id``); it never contains compact rows, so no compact
+        prefix offset is involved.
+        """
+        try:
+            recent = state_messages[split:]
+        except Exception:
+            return None
+        if not recent:
+            return None
+        try:
+            R, row_starts = ChatSession._reconstruct_with_starts(rows)
+        except Exception:
+            return None
+        if not R:
+            return None
+        p = ChatSession._find_recent_start(R, recent)
+        if p is None:
+            return None
+        boundary_i = -1
+        for i, s in enumerate(row_starts):
+            # Strict < : a row whose neutral start equals p is the first row
+            # of the *kept* (recent) portion, not the last summarized one.
+            if s < p:
+                boundary_i = i
+        return rows[boundary_i]["id"] if boundary_i >= 0 else None
+
+    def _on_compact(self, summary_text: str, ack_text: str,
+                    split: int) -> None:
+        """Persist a just-performed compaction to the DB (best-effort).
+
+        Maps the neutral ``split`` index (into the pre-compaction AgentState)
+        to a real message-row boundary, then writes the compact block + the
+        boundary pointer via repo.upsert_compaction. Any failure is swallowed
+        so the agent loop is never blocked by persistence.
+        """
+        after_id = ChatSession._compute_after_id(
+            self.messages, self._agent_state.messages, split)
+        if after_id is None:
+            return
+        try:
+            from cheetahclaws.web import db as _db
+            _db.repo.upsert_compaction(self.session_id, summary_text,
+                                       ack_text, after_id)
+        except Exception:
+            pass
 
     # ── Subscriber management ──────────────────────────────────────────
 
@@ -747,7 +879,8 @@ class ChatSession:
                 sys.stderr = wrapper
                 try:
                     result = _web_handle_slash(line, self._agent_state,
-                                              self.config)
+                                              self.config,
+                                              on_compact=self._on_compact)
                     if isinstance(result, tuple):
                         self._process_sentinel(result)
                     elif result is True:
@@ -776,7 +909,8 @@ class ChatSession:
         try:
             sys.stdout = capture
             sys.stderr = capture
-            result = _web_handle_slash(line, self._agent_state, self.config)
+            result = _web_handle_slash(line, self._agent_state, self.config,
+                                       on_compact=self._on_compact)
         except Exception as exc:
             self._broadcast(ChatEvent("error", {"message": str(exc)}))
             return True
@@ -913,7 +1047,8 @@ class ChatSession:
         try:
             sys.stdout = capture
             sys.stderr = capture
-            result = _web_handle_slash(line, self._agent_state, self.config)
+            result = _web_handle_slash(line, self._agent_state, self.config,
+                                       on_compact=self._on_compact)
         finally:
             sys.stdout = old_stdout
             sys.stderr = old_stderr
@@ -971,7 +1106,8 @@ class ChatSession:
 
         try:
             for event in run(prompt, self._agent_state, self.config,
-                             system_prompt, cancel_check=self._cancelled.is_set):
+                             system_prompt, cancel_check=self._cancelled.is_set,
+                             on_compact=self._on_compact):
                 if isinstance(event, TextChunk):
                     if event.kind:
                         # System / retry diagnostic (kind="notice"/"error").
@@ -1150,13 +1286,17 @@ class ChatSession:
         # Persist to DB (best-effort; don't break streaming on DB failure)
         try:
             from cheetahclaws.web import db as _db
-            _db.repo.append_message(
+            mid = _db.repo.append_message(
                 self.session_id,
                 msg.get("role", "system"),
                 msg.get("content", "") or "",
                 msg.get("tool_calls"),
                 blocks=blocks,
             )
+            # Stamp the assigned DB id so boundary math in _on_compact can map
+            # an in-memory row to its persisted id.
+            if mid is not None:
+                msg["id"] = mid
             # Keep in-memory title in sync with auto-titling in repo
             sess = _db.repo.get_session(self.session_id, self.user_id)
             if sess and sess["title"] != self.title:
@@ -1429,7 +1569,7 @@ def export_chat_session_markdown(sid: str, user_id: int) -> Optional[str]:
         meta = _db.repo.get_session(sid, user_id)
         if not meta:
             return None
-        msgs = _db.repo.get_messages(sid)
+        msgs = _db.repo.get_messages_for_ui(sid)
     except Exception:  # noqa: BLE001
         return None
     import datetime as _dt

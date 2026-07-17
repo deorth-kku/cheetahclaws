@@ -309,7 +309,7 @@ def cmd_budget(args: str, state, config) -> bool:
     return True
 
 
-def cmd_compact(args: str, state, config) -> bool:
+def cmd_compact(args: str, state, config, on_compact=None) -> bool:
     """Manually compact conversation history."""
     from cheetahclaws.compaction import manual_compact
     focus = args.strip()
@@ -317,7 +317,8 @@ def cmd_compact(args: str, state, config) -> bool:
         info(f"Compacting with focus: {focus}")
     else:
         info("Compacting conversation...")
-    success, msg = manual_compact(state, config, focus=focus)
+    success, msg = manual_compact(state, config, focus=focus,
+                                  on_compact=on_compact)
     if success:
         info(msg)
     else:

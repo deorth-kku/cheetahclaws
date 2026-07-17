@@ -91,6 +91,10 @@ class ChatSessionRow(Base):
         ForeignKey("folders.id", ondelete="SET NULL"),
         nullable=True, index=True,
     )
+    # Last real message row that was summarized by compaction. Rows with
+    # id <= this are superseded for the agent (AgentState read path) but still
+    # kept for the UI chat history. NULL = no compaction yet.
+    compact_after_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     user: Mapped[User] = relationship(back_populates="sessions")
     folder: Mapped["Folder | None"] = relationship(back_populates="sessions")
@@ -117,6 +121,9 @@ class Message(Base):
     # (text between tool calls) survives a page refresh. NULL for legacy
     # rows — the renderer falls back to content + tool_calls_json.
     blocks_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # True for the synthetic rows written by compaction (summary + ack). The UI
+    # chat history skips these; the AgentState read path includes them.
+    is_compact: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[float] = mapped_column(Float, default=time.time,
                                               nullable=False)
 

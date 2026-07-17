@@ -86,6 +86,20 @@ def init_db(db_path: Optional[Path] = None) -> None:
                 conn.exec_driver_sql(
                     "ALTER TABLE messages ADD COLUMN blocks_json TEXT"
                 )
+            # Migration for compaction: a boolean flag marking the synthetic
+            # summary/ack rows written by compaction, plus a session-level
+            # pointer to the last real row that was summarized.
+            if "is_compact" not in msg_cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE messages ADD COLUMN is_compact INTEGER DEFAULT 0"
+                )
+            sess_cols = {row[1] for row in conn.exec_driver_sql(
+                "PRAGMA table_info(chat_sessions)"
+            ).fetchall()}
+            if "compact_after_id" not in sess_cols:
+                conn.exec_driver_sql(
+                    "ALTER TABLE chat_sessions ADD COLUMN compact_after_id INTEGER"
+                )
         _SessionLocal = sessionmaker(bind=_engine, autoflush=False,
                                      expire_on_commit=False, future=True)
         # Tighten file permissions — the DB now holds password hashes & API keys.
@@ -114,6 +128,23 @@ def session_scope() -> Iterator[Session]:
 # ── Repository ───────────────────────────────────────────────────────────
 # Thin functions returning plain dicts so callers don't hold ORM objects
 # across session boundaries (avoids DetachedInstanceError).
+
+def _row_to_dict(m: "Message") -> dict:
+    """Convert a Message ORM row to the plain dict the API expects."""
+    d = {"id": m.id, "role": m.role, "content": m.content,
+         "created_at": m.created_at, "is_compact": bool(m.is_compact)}
+    if m.blocks_json:
+        try:
+            d["blocks"] = json.loads(m.blocks_json)
+        except json.JSONDecodeError:
+            pass
+    if m.tool_calls_json and "blocks" not in d:
+        try:
+            d["tool_calls"] = json.loads(m.tool_calls_json)
+        except json.JSONDecodeError:
+            pass
+    return d
+
 
 class repo:
     """Namespace for CRUD helpers."""
@@ -368,7 +399,8 @@ class repo:
     @staticmethod
     def append_message(session_id: str, role: str, content: str,
                        tool_calls: Optional[list] = None,
-                       blocks: Optional[list] = None) -> int:
+                       blocks: Optional[list] = None,
+                       is_compact: bool = False) -> int:
         with session_scope() as db:
             m = Message(
                 session_id=session_id,
@@ -376,6 +408,7 @@ class repo:
                 content=content,
                 tool_calls_json=json.dumps(tool_calls) if tool_calls else None,
                 blocks_json=json.dumps(blocks) if blocks else None,
+                is_compact=is_compact,
             )
             db.add(m)
             row = db.get(ChatSessionRow, session_id)
@@ -411,6 +444,68 @@ class repo:
                         pass
                 out.append(d)
             return out
+
+    @staticmethod
+    def get_messages_for_ui(session_id: str) -> list[dict]:
+        """Chat-history view: full real history, compact rows excluded."""
+        with session_scope() as db:
+            rows = db.scalars(
+                select(Message).where(Message.session_id == session_id,
+                                      Message.is_compact == False)  # noqa: E712
+                .order_by(Message.id)
+            ).all()
+            return [_row_to_dict(m) for m in rows]
+
+    @staticmethod
+    def get_messages_for_agent(session_id: str) -> list[dict]:
+        """AgentState view: compact rows + real rows after the compaction
+        boundary, in chronological order. Returns raw rows; the caller
+        converts them to the neutral format via _messages_to_neutral.
+
+        The compact block (written after the real rows, hence with higher ids)
+        always leads the conversation, so it is emitted first regardless of id
+        ordering."""
+        with session_scope() as db:
+            sess = db.get(ChatSessionRow, session_id)
+            after_id = sess.compact_after_id if sess else None
+            rows = db.scalars(
+                select(Message).where(Message.session_id == session_id)
+                .order_by(Message.id)
+            ).all()
+            compact: list[dict] = []
+            recent: list[dict] = []
+            for m in rows:
+                if m.is_compact:
+                    compact.append(_row_to_dict(m))
+                elif after_id is None or m.id > after_id:
+                    recent.append(_row_to_dict(m))
+            return compact + recent
+
+    @staticmethod
+    def upsert_compaction(session_id: str, summary_text: str,
+                          ack_text: str, after_id: Optional[int]) -> None:
+        """Persist a compaction as two synthetic rows (summary + ack) and record
+        the boundary. Replaces any prior compaction for this session so only one
+        compact marker exists at a time (handles stacked compactions)."""
+        with session_scope() as db:
+            db.execute(
+                select(Message).where(
+                    Message.session_id == session_id,
+                    Message.is_compact == True)  # noqa: E712
+                .with_for_update()
+            )
+            db.execute(
+                Message.__table__.delete().where(
+                    Message.session_id == session_id,
+                    Message.is_compact == True))  # noqa: E712
+            db.add(Message(session_id=session_id, role="user",
+                           content=summary_text, is_compact=True))
+            db.add(Message(session_id=session_id, role="assistant",
+                           content=ack_text, is_compact=True))
+            row = db.get(ChatSessionRow, session_id)
+            if row:
+                row.compact_after_id = after_id
+            db.flush()
 
     # ── API credentials ────────────────────────────────────────────────
 
