@@ -325,6 +325,7 @@ class ChatSession:
 
     def _init_runtime(self):
         """Initialize RuntimeContext and AgentState."""
+        from cheetahclaws.web import db as _db
         from cheetahclaws.agent import AgentState
         from cheetahclaws import runtime
 
@@ -337,8 +338,9 @@ class ChatSession:
         # history.  Rebuild the neutral message list from the persisted rows.
         # Use the agent view (compact block + rows after the boundary) so the
         # compaction survives a restart instead of being silently lost and
-        # re-inflating the context window.
-        if existing:
+        # re-inflating the context window. Rebuild whenever there is hydrated
+        # history (self.messages is empty for brand-new sessions).
+        if self.messages:
             try:
                 self._agent_state.messages = self._messages_to_neutral(
                     _db.repo.get_messages_for_agent(self.session_id))
