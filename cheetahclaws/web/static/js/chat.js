@@ -613,6 +613,14 @@ class ChatApp {
       this._thinkEl = el;
       this._thinkBuf = '';
       this._scrollBottom();
+      // Update the caret whenever the user expands/collapses the live thinking block.
+      const det = el.querySelector('details');
+      const caret = el.querySelector('.th-caret');
+      if (det && caret) {
+        det.addEventListener('toggle', () => {
+          caret.textContent = det.open ? '▾' : '▸';
+        });
+      }
     }
     this._thinkBuf += text;
     const thContent = this._thinkEl.querySelector('.thinking-content');
@@ -678,6 +686,14 @@ class ChatApp {
       `<div class="thinking-content">${this._renderMd(text)}</div></details>`;
     document.getElementById('messages').appendChild(el);
     this._scrollBottom();
+    // Update the toggle arrow whenever the user expands/collapses the block.
+    const det = el.querySelector('details');
+    const tog = el.querySelector('.thinking-toggle');
+    if (det && tog) {
+      det.addEventListener('toggle', () => {
+        tog.textContent = det.open ? '▾' : '▸';
+      });
+    }
   }
 
   setStatus(state) {
