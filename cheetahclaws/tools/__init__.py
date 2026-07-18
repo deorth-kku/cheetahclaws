@@ -601,7 +601,7 @@ def _register_builtins() -> None:
             name="Research",
             schema=_schemas["Research"],
             func=lambda p, c: _research(
-                topic=p["topic"],
+                topic=p.get("topic"),
                 domains=p.get("domains"),
                 sources=p.get("sources"),
                 limit=p.get("limit", 15),
@@ -623,7 +623,7 @@ def _register_builtins() -> None:
             name="NotebookEdit",
             schema=_schemas["NotebookEdit"],
             func=lambda p, c: _notebook_edit(
-                p["notebook_path"], p["new_source"],
+                p.get("notebook_path"), p.get("new_source"),
                 p.get("cell_id"), p.get("cell_type"),
                 p.get("edit_mode", "replace"),
             ),
@@ -632,7 +632,7 @@ def _register_builtins() -> None:
         ToolDef(
             name="GetDiagnostics",
             schema=_schemas["GetDiagnostics"],
-            func=lambda p, c: _get_diagnostics(p["file_path"], p.get("language")),
+            func=lambda p, c: _get_diagnostics(p.get("file_path"), p.get("language")),
             read_only=True, concurrent_safe=True,
         ),
         ToolDef(
@@ -647,7 +647,7 @@ def _register_builtins() -> None:
         ToolDef(
             name="SleepTimer",
             schema=_schemas["SleepTimer"],
-            func=lambda p, c: _sleeptimer(p["seconds"], c),
+            func=lambda p, c: _sleeptimer(p.get("seconds"), c),
             read_only=False, concurrent_safe=True,
         ),
     ]

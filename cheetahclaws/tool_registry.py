@@ -59,6 +59,51 @@ def clear_tool_cache() -> None:
     _cache_order.clear()
 
 
+def _levenshtein(a: str, b: str) -> int:
+    """Standard edit distance between two strings (iterative, O(n·m))."""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i] + [0] * len(b)
+        for j, cb in enumerate(b, 1):
+            cur[j] = min(
+                prev[j] + 1,          # deletion
+                cur[j - 1] + 1,       # insertion
+                prev[j - 1] + (ca != cb),  # substitution
+            )
+        prev = cur
+    return prev[len(b)]
+
+
+def _suggest_param(missing: str, candidates: List[str]) -> Optional[str]:
+    """Suggest the most similar candidate key for a missing required param.
+
+    Returns the closest candidate within a length-scaled edit-distance
+    threshold, or ``None`` if nothing is close enough (e.g. the caller sent
+    a completely unrelated or empty key set). Threshold scales with the
+    missing key's length so short keys stay strict (avoid `id`~`aid`) while
+    longer keys tolerate a couple of typos/inflections.
+    """
+    if not candidates:
+        return None
+    # Allow at most ~40% of the key to differ, with a floor of 1 and a
+    # ceiling of 4 so very long keys don't require an exact match.
+    _max_dist = max(1, min(4, int(round(len(missing) * 0.4))))
+    _best, _best_d = None, None
+    for c in candidates:
+        if c == missing:
+            continue
+        d = _levenshtein(missing, c)
+        if d <= _max_dist and (_best_d is None or d < _best_d):
+            _best, _best_d = c, d
+    return _best
+
+
 # --------------- public API ---------------
 
 def register_tool(tool_def: ToolDef) -> None:
@@ -101,6 +146,40 @@ def execute_tool(
     tool = get_tool(name)
     if tool is None:
         return f"Error: tool '{name}' not found."
+
+    # Centralized required-parameter validation. Historically each ToolDef's
+    # lambda hard-indexed params (e.g. `p["question"]`), so a model that fired
+    # a tool_call with missing/renamed args raised a bare `KeyError: 'question'`
+    # which bubbled up as ``Error executing {name}: 'question'`` — an
+    # unhelpful message the model could not self-correct from (see docs/news.md
+    # "KeyError: 'file_path'" entry). Validate against the schema's `required`
+    # list here, *before* the lambda runs, so every tool (built-in, MCP, and
+    # plugin-registered) gets a uniform, schema-aware error with the exact
+    # missing key name and the keys actually received.
+    _req = (
+        tool.schema.get("input_schema", {}).get("required", [])
+        if isinstance(tool.schema, dict) else []
+    )
+    if _req:
+        _missing = [k for k in _req if k not in params]
+        if _missing:
+            # Offer a "did you mean?" hint by fuzzy-matching each missing
+            # required key against the keys the caller actually sent. This
+            # catches schema drift / typos generically (e.g. `questions`
+            # instead of `question`, `filepath` instead of `file_path`,
+            # `notebok_path` instead of `notebook_path`) without hardcoding
+            # any per-tool special cases.
+            _hint_parts = []
+            for _m in _missing:
+                _sug = _suggest_param(_m, list(params.keys()))
+                if _sug:
+                    _hint_parts.append(f"'{_m}' (did you mean '{_sug}'?)")
+                else:
+                    _hint_parts.append(f"'{_m}'")
+            return (
+                "Error: missing required parameter"
+                f"{_hint_parts}. Received keys: {sorted(params.keys())}"
+            )
 
     # Cache hit for read-only tools (same name + same params + same session).
     use_cache = tool.read_only

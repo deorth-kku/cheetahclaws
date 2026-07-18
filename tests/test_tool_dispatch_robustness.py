@@ -67,3 +67,25 @@ def test_notebookedit_empty_args_does_not_keyerror():
     out = execute_tool("NotebookEdit", {}, permission_mode="accept-all", config={})
     assert isinstance(out, str)
     assert "KeyError" not in out
+
+
+@pytest.mark.parametrize("inputs,expect_suggestion", [
+    ({}, False),                          # totally missing — no candidate to suggest
+    ({"questions": "[{...}]"}, True),     # wrong key (Anthropic schema), JSON-stringified
+    ({"questions": [{"q": "?", "options": []}]}, True),  # wrong key, real array
+    ({"queston": "hi"}, True),            # single-char typo of `question`
+])
+def test_askuserquestion_wrong_or_missing_question(inputs, expect_suggestion):
+    """AskUserQuestion must surface a schema-aware friendly error, never a
+    bare KeyError. A fuzzy 'did you mean?' hint must be offered when the
+    caller sent a key that only differs from the required one by a small
+    edit distance (e.g. `questions`/`queston` vs `question`) — without any
+    hardcoded per-tool special cases."""
+    out = execute_tool("AskUserQuestion", inputs, permission_mode="accept-all", config={})
+    assert isinstance(out, str)
+    assert "KeyError" not in out, f"AskUserQuestion leaked KeyError: {out!r}"
+    assert "missing required parameter" in out.lower(), f"unexpected: {out!r}"
+    if expect_suggestion:
+        assert "did you mean" in out.lower(), (
+            f"expected a 'did you mean?' suggestion: {out!r}"
+        )
