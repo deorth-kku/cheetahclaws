@@ -946,6 +946,21 @@ def _handle_chat_websocket(sock: socket.socket, extra: bytes,
     # Subscribe to the session's event queue
     event_queue = chat_session.subscribe()
 
+    # Push the session's CURRENT running state so a freshly-connected (or
+    # post-refresh) client reflects a session that is already mid-run instead
+    # of appearing idle/"connected". Without this, ws.onopen on the client sets
+    # status to 'connected' and a session running since before the page load
+    # would never receive a correcting status event until the next turn.
+    try:
+        _ws_send(bsock, json.dumps({
+            "type": "status",
+            "data": {
+                "state": "running" if not chat_session.is_idle() else "idle",
+            },
+        }).encode(), opcode=0x01, lock=send_lock)
+    except OSError:
+        return
+
     # Reader thread: handle incoming WS messages (approve, prompt, etc.)
     reader_alive = threading.Event()
     reader_alive.set()

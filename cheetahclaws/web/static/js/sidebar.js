@@ -650,6 +650,10 @@ Object.assign(ChatApp.prototype, {
       const r = await this._fetchAuth(`/api/sessions/${sid}`);
       const data = await r.json();
       (data.messages || []).forEach(m => this._renderMessage(m));
+      // The server already knows if this session is mid-run (busy). Reflect it
+      // immediately so a running session isn't shown as idle/"connected" until
+      // the WS status event arrives. The Stop button stays visible too.
+      if (data.busy) this.setStatus('running');
     } catch(e) { console.error('switchSession:', e); }
     this._connectWS(sid);
     this.loadSessions();
