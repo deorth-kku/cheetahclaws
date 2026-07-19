@@ -64,7 +64,8 @@ def _get_web_commands() -> dict:
             ("export", "cmd_export"), ("copy", "cmd_copy"),
             ("doctor", "cmd_doctor"), ("init", "cmd_init"),
             ("proactive", "cmd_proactive"), ("image", "cmd_image"),
-            ("img", "cmd_image"),
+            ("img", "cmd_image"), ("circuit", "cmd_circuit"),
+            ("budget", "cmd_budget"),
         ]),
         ("commands.session", [
             ("save", "cmd_save"), ("load", "cmd_load"),
@@ -76,6 +77,7 @@ def _get_web_commands() -> dict:
             ("model", "cmd_model"), ("config", "cmd_config"),
             ("verbose", "cmd_verbose"), ("thinking", "cmd_thinking"),
             ("permissions", "cmd_permissions"), ("cwd", "cmd_cwd"),
+            ("quiet", "cmd_quiet"),
         ]),
         ("commands.advanced", [
             ("brainstorm", "cmd_brainstorm"), ("worker", "cmd_worker"),
@@ -83,9 +85,17 @@ def _get_web_commands() -> dict:
             ("memory", "cmd_memory"), ("agents", "cmd_agents"),
             ("mcp", "cmd_mcp"), ("plugin", "cmd_plugin"),
             ("tasks", "cmd_tasks"), ("task", "cmd_tasks"),
+            ("summarize", "cmd_summarize"), ("draft", "cmd_draft"),
         ]),
         ("commands.checkpoint_plan", [
             ("plan", "cmd_plan"), ("checkpoint", "cmd_checkpoint"),
+            ("rewind", "cmd_rewind"),
+        ]),
+        ("commands.workspace_cmd", [
+            ("workspace", "cmd_workspace"),
+        ]),
+        ("commands.theme_cmd", [
+            ("theme", "cmd_theme"),
         ]),
         ("commands.agent_cmd", [
             ("agent", "cmd_agent"),
