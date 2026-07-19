@@ -511,6 +511,11 @@ class repo:
             for m in rows:
                 if m.is_compact:
                     compact.append(_row_to_dict(m))
+                elif m.role == "system":
+                    # Captured command stdout (role="system" / command_result
+                    # block). This is a UI-only annotation, never part of the
+                    # LLM context, so exclude it from the AgentState rebuild.
+                    continue
                 elif after_id is None or m.id > after_id:
                     recent.append(_row_to_dict(m))
             return compact + recent

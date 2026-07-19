@@ -413,6 +413,13 @@ class ChatSession:
                 nm["images"] = m["images"]
             return [nm]
 
+        if role == "system":
+            # command_result rows: UI-only annotations, never part of the LLM
+            # context. Drop them from the neutral (agent) stream. The DB read
+            # path already filters these out before calling this method, but
+            # guard here too in case the list is sourced elsewhere.
+            return []
+
         if role != "assistant":
             # Shouldn't happen at this layer, but keep it safe.
             return [{"role": role, "content": m.get("content", "")}]
@@ -936,7 +943,16 @@ class ChatSession:
         output = _re.sub(r'\x1b\[[0-9;]*m', '', output)
 
         if output:
-            self._append_msg({"role": "assistant", "content": output})
+            # Persist as a SYSTEM-tagged row with a command_result block so
+            # the UI re-renders it as a System block after a refresh, and so
+            # the agent-state rebuild (get_messages_for_agent) EXCLUDES it —
+            # command output is never part of the LLM context (it is captured
+            # stdout, not a model reply).
+            self._append_msg(
+                {"role": "system", "content": output},
+                blocks=[{"type": "command_result", "command": line,
+                         "output": output}],
+            )
             self._broadcast(ChatEvent("command_result", {
                 "command": line, "output": output,
             }))
@@ -1069,7 +1085,11 @@ class ChatSession:
 
         output = _re.sub(r'\x1b\[[0-9;]*m', '', capture.getvalue().strip())
         if output:
-            self._append_msg({"role": "assistant", "content": output})
+            self._append_msg(
+                {"role": "system", "content": output},
+                blocks=[{"type": "command_result", "command": line,
+                         "output": output}],
+            )
             self._broadcast(ChatEvent("command_result", {
                 "command": line, "output": output,
             }))

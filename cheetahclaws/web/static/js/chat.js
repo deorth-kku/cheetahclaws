@@ -43,8 +43,22 @@ class ChatApp {
     if (m.role === 'user') {
       this._addUserBubble(m.content || '');
       return;
-    }
-    // assistant
+    }    if (m.role === 'system') {
+      // Persisted command output (e.g. /help). Render as a System block,
+      // matching the live `command_result` event rendering, never as an
+      // Assistant reply.
+      const blocks = m.blocks;
+      if (Array.isArray(blocks) && blocks.length) {
+        for (const b of blocks) {
+          if (b.type === 'command_result') {
+            this._addCommandResult(b.command || '', b.output || '');
+          }
+        }
+      } else if (m.content) {
+        this._addCommandResult('', m.content);
+      }
+      return;
+    }    // assistant
     const blocks = m.blocks;
     if (Array.isArray(blocks) && blocks.length) {
       // Answers to AskUserQuestion live in the matching tool block's result,
