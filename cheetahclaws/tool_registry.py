@@ -121,9 +121,41 @@ def get_all_tools() -> List[ToolDef]:
     return list(_registry.values())
 
 
-def get_tool_schemas() -> List[Dict[str, Any]]:
-    """Return the schemas of all registered tools (for API tool parameter)."""
-    return [t.schema for t in _registry.values()]
+def _normalize_disabled(raw) -> set:
+    """Normalize a config `disabled_tools` value into a lowercase set
+    of tool names (stripped). Handles None, non-list, and non-str entries
+    gracefully. Empty/whitespace entries are dropped."""
+    if not raw:
+        return set()
+    out = set()
+    for d in raw:
+        if d is None:
+            continue
+        s = str(d).strip().lower()
+        if s:
+            out.add(s)
+    return out
+
+
+def get_tool_schemas(disabled: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    """Return the schemas of registered tools (for the API `tools` param).
+
+    Args:
+        disabled: optional list of tool names to exclude from the
+            declarations sent to the LLM. Matching is case-insensitive and
+            ignores surrounding whitespace, so a config value like
+            ``["bash", " WebFetch "]`` filters those tools out. The model
+            therefore never receives the declarations and cannot call them.
+    """
+    schemas = [t.schema for t in _registry.values()]
+    dis = _normalize_disabled(disabled)
+    if not dis:
+        return schemas
+    return [
+        s for s in schemas
+        if isinstance(s, dict)
+        and str(s.get("name", "")).strip().lower() not in dis
+    ]
 
 
 def execute_tool(
@@ -146,6 +178,14 @@ def execute_tool(
     tool = get_tool(name)
     if tool is None:
         return f"Error: tool '{name}' not found."
+
+    # Hard guard: a disabled tool must never execute, even if it is somehow
+    # dispatched (e.g. a stale schema, an out-of-band caller). Mirrors the
+    # filtering applied to the declarations sent to the LLM so the two
+    # surfaces stay consistent.
+    _dis = _normalize_disabled(config.get("disabled_tools")) if isinstance(config, dict) else set()
+    if _dis and str(name).strip().lower() in _dis:
+        return f"Error: tool '{name}' is disabled by configuration."
 
     # Centralized required-parameter validation. Historically each ToolDef's
     # lambda hard-indexed params (e.g. `p["question"]`), so a model that fired

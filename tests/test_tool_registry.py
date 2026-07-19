@@ -89,6 +89,35 @@ def test_get_tool_schemas():
     assert schemas[0]["name"] == "echo"
 
 
+def test_get_tool_schemas_disabled_filters_out():
+    register_tool(_make_echo_tool("Alpha"))
+    register_tool(_make_echo_tool("Beta"))
+    register_tool(_make_echo_tool("Gamma"))
+    # case-insensitive + whitespace-tolerant matching
+    schemas = get_tool_schemas(disabled=["alpha", "  Gamma "])
+    names = [s["name"] for s in schemas]
+    assert names == ["Beta"]
+
+
+def test_get_tool_schemas_disabled_empty_keeps_all():
+    register_tool(_make_echo_tool("Alpha"))
+    register_tool(_make_echo_tool("Beta"))
+    assert len(get_tool_schemas(disabled=[])) == 2
+    assert len(get_tool_schemas(disabled=None)) == 2
+    assert len(get_tool_schemas(disabled=["", None, "  "])) == 2
+
+
+def test_execute_tool_disabled_blocked():
+    register_tool(_make_echo_tool("echo"))
+    blocked = execute_tool("echo", {"text": "hi"}, config={"disabled_tools": ["echo"]})
+    assert "disabled" in blocked.lower()
+
+
+def test_execute_tool_not_disabled_runs():
+    register_tool(_make_echo_tool("echo"))
+    assert execute_tool("echo", {"text": "hi"}, config={"disabled_tools": ["other"]}) == "hi"
+
+
 # ------------------------------------------------------------------
 # execute_tool
 # ------------------------------------------------------------------

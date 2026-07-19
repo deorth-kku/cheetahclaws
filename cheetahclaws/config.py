@@ -36,6 +36,15 @@ DEFAULTS = {
     "thinking_budget":  10000,
     "custom_base_url":  "",       # for "custom" provider
     "max_tool_output":  None,
+    # ── Disabled tools ──────────────────────────────────────────────────
+    # disabled_tools: list of tool names excluded from the declarations
+    #   sent to the LLM on every API call (works for CLI, WebUI, bridges,
+    #   sub-agents, and skills). Matching is case-insensitive and ignores
+    #   surrounding whitespace, so "bash", " WebFetch " both work. The
+    #   model simply never sees those tools, so it can't call them. Set
+    #   via `/config disabled_tools=Bash,WebFetch` (comma-split; JSON
+    #   arrays like ["Bash","WebFetch"] also accepted).
+    "disabled_tools":  [],
     "max_agent_depth":  3,
     "max_concurrent_agents": 3,
     "session_daily_limit":   10000,    # max sessions kept per day in daily/

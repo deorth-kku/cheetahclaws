@@ -244,7 +244,7 @@ def run(
                     model=config["model"],
                     system=system_prompt,
                     messages=state.messages,
-                    tool_schemas=get_tool_schemas(),
+                    tool_schemas=get_tool_schemas(config.get("disabled_tools")),
                     config=_call_config,
                 ):
                     if isinstance(event, (TextChunk, ThinkingChunk)):
@@ -375,7 +375,7 @@ def run(
             # Auto-nudge: text-only reply when the user clearly wanted
             # investigation (their message contained an absolute path).
             # One shot only — see `_nudges_remaining` init above.
-            if _nudges_remaining > 0 and get_tool_schemas():
+            if _nudges_remaining > 0 and get_tool_schemas(config.get("disabled_tools")):
                 _nudges_remaining -= 1
                 _nudge_msg = (
                     "[system reminder] You replied with text and no tool "

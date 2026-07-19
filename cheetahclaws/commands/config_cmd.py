@@ -9,6 +9,13 @@ import json
 import os
 
 from cheetahclaws.ui.render import clr, info, ok, warn, err
+from cheetahclaws.config import DEFAULTS
+
+# Config keys whose value is a list. For these, a plain comma-separated
+# string is split into a list so users can write
+#   /config disabled_tools=Bash,WebFetch
+# instead of JSON. JSON arrays are still accepted by the parser below.
+_LIST_CONFIG_KEYS = {k for k, v in DEFAULTS.items() if isinstance(v, list)}
 
 
 def cmd_model(args: str, _state, config) -> bool:
@@ -193,6 +200,12 @@ def cmd_config(args: str, _state, config) -> bool:
                 val = json.loads(val)
             except json.JSONDecodeError:
                 pass  # leave as string
+        # List-type keys: a plain "a,b,c" string is split into a list
+        # (case/whitespace-insensitive). Lets users write
+        #   /config disabled_tools=Bash,WebFetch
+        # JSON arrays still work via the branch above.
+        if key in _LIST_CONFIG_KEYS and isinstance(val, str):
+            val = [p.strip() for p in val.split(",") if p.strip()]
         config[key] = val
         save_config(config)
         ok(f"Set {key} = {val!r}")
