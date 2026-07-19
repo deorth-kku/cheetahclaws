@@ -296,6 +296,114 @@ def _render_commands_block() -> str:
     return "\n".join(lines)
 
 
+def _strip_section(text: str, title: str) -> str:
+    """Remove a top-level ``# Title`` section (through the next top-level
+    header) by exact title match. Used to drop prose that only makes sense
+    when a tool is enabled — the title is a code constant, never user input.
+    """
+    lines = text.split("\n")
+    out: list[str] = []
+    skipping = False
+    for line in lines:
+        if line.strip() == title:
+            skipping = True
+            continue
+        if skipping:
+            if line.startswith("# "):
+                skipping = False
+                out.append(line)
+            # otherwise skip until next top-level header
+        else:
+            out.append(line)
+    return "\n".join(out)
+
+
+_BOLD_RE = re.compile(r"\*\*(.+?)\*\*")
+# A tool-list bullet has the shape:
+#   - **ToolName** / **OtherTool**: <description>
+# i.e. a run of bold single-identifier names (optionally ` / `-joined)
+# IMMEDIATELY followed by `:`. This precise signature is what lets us
+# distinguish a tool declaration from prose bold such as
+# "- **genuinely** unrecoverable..." (no `:` right after the bold) or
+# "**Workflow:**" (not a list bullet). No fuzzy section-name matching.
+_TOOL_LIST_RE = re.compile(
+    r"^-\s+(\*\*(?:[A-Za-z][A-Za-z0-9_]*)\*\*"
+    r"(?:\s*/\s*\*\*(?:[A-Za-z][A-Za-z0-9_]*)\*\*)*)\s*:\s*(.*)$"
+)
+
+
+def _filter_tool_list_line(line: str, disabled: set) -> "str | None":
+    """If ``line`` is a ``- **Tool**:`` bullet in the tool list, drop any
+    disabled tool tokens by exact name. Returns the (possibly rewritten)
+    line, or ``None`` if every tool token was disabled (line is dropped).
+    Non-list lines and prose bold pass through unchanged.
+    """
+    m = _TOOL_LIST_RE.match(line)
+    if not m:
+        return line
+    head, desc = m.group(1), m.group(2)
+    names = [t.group(1) for t in _BOLD_RE.finditer(head)]
+    kept = [n for n in names if n.strip().lower() not in disabled]
+    if not kept:
+        return None
+    new_head = " / ".join(f"**{n}**" for n in kept)
+    return f"- {new_head}: {desc.lstrip()}"
+
+
+def _drop_empty_subsections(lines: list) -> str:
+    """Remove ``##`` subsection headers that now have no content between
+    them and the next header (e.g. an emptied ``## Multi-Agent`` list)."""
+    out: list[str] = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        line = lines[i]
+        if line.startswith("## ") and not line.startswith("### "):
+            j = i + 1
+            content: list[str] = []
+            while j < n and not lines[j].startswith("#"):
+                content.append(lines[j])
+                j += 1
+            if all(c.strip() == "" for c in content):
+                i = j
+                continue
+            out.append(line)
+            out.extend(content)
+            i = j
+        else:
+            out.append(line)
+            i += 1
+    return "\n".join(out)
+
+
+def _apply_disabled_tools(prompt: str, disabled: set) -> str:
+    """Strip disabled tool references from the *prose* of the system prompt.
+
+    Two surfaces are cleaned, both keyed only on tool names (never on
+    user-supplied section titles):
+
+    1. The ``# Multi-Agent Guidelines`` prose section is removed wholesale
+       when the core ``Agent`` tool is disabled — that section only makes
+       sense if sub-agents exist.
+    2. Every ``- **ToolName**:`` bullet under ``# Available Tools`` has its
+       disabled tokens removed by exact name; lines that lose all their
+       tool tokens (and the now-empty ``##`` subsections) are dropped.
+
+    This mirrors the schema filtering in ``tool_registry.get_tool_schemas``
+    so the model cannot call — or even read about — a disabled tool. The
+    user-reported bug: Agent/SendMessage stayed "available" after being
+    disabled, because the prose list was not filtered, and small models
+    follow it even when the schema is withheld.
+    """
+    text = prompt
+    if "agent" in disabled:
+        text = _strip_section(text, "# Multi-Agent Guidelines")
+
+    lines = [_filter_tool_list_line(ln, disabled) for ln in text.split("\n")]
+    lines = [ln for ln in lines if ln is not None]
+    return _drop_empty_subsections(lines)
+
+
 def build_system_prompt(config: dict | None = None) -> str:
     """Build the full system prompt for the current session.
 
@@ -341,4 +449,17 @@ def build_system_prompt(config: dict | None = None) -> str:
     # Collapse any trailing whitespace on each part so the "\n\n"
     # separator produces a consistent two-newline gap regardless of how
     # each file/helper terminates.
-    return "\n\n".join(p.rstrip() for p in parts if p)
+    prompt = "\n\n".join(p.rstrip() for p in parts if p)
+
+    # Apply disabled_tools to the *text* of the prompt, not just the tool
+    # schemas: a model (especially a small one) follows the prose tool list
+    # in the system prompt even when the schema is withheld — see the
+    # reported bug where Agent/SendMessage stayed "available" after being
+    # disabled. Schema filtering lives in tool_registry; this keeps the two
+    # surfaces consistent. Keyed only on tool names, never on section titles.
+    from cheetahclaws.tool_registry import _normalize_disabled
+    disabled = _normalize_disabled(cfg.get("disabled_tools"))
+    if disabled:
+        prompt = _apply_disabled_tools(prompt, disabled)
+
+    return prompt
