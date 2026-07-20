@@ -961,6 +961,20 @@ def _handle_chat_websocket(sock: socket.socket, extra: bytes,
     except OSError:
         return
 
+    # Retransmit a pending permission request so a freshly-connected (or
+    # post-refresh) client sees the approval card instead of a silent agent
+    # that's been waiting for 5 minutes.  Only sent once per connection —
+    # _current_permission is cleared by api.py after the response is broadcast.
+    perm = getattr(chat_session, "_current_permission", None)
+    if perm is not None:
+        try:
+            _ws_send(bsock, json.dumps({
+                "type": "permission_request",
+                "data": {"description": perm},
+            }).encode(), opcode=0x01, lock=send_lock)
+        except OSError:
+            pass
+
     # Reader thread: handle incoming WS messages (approve, prompt, etc.)
     reader_alive = threading.Event()
     reader_alive.set()

@@ -315,6 +315,13 @@ class ChatSession:
         # Stop signal — set by request_stop() (Stop button / WS "stop" msg).
         self._cancelled = threading.Event()
 
+        # Currently-pending permission request (description string or None).
+        # Set when the agent broadcasts `permission_request` and cleared after
+        # `permission_response`.  Used by the WS handler to retransmit the
+        # pending permission to a freshly-connected (post-refresh) client so
+        # it doesn't miss the approval card.
+        self._current_permission: Optional[str] = None
+
         # Message history for UI replay on reconnect (hydrated from DB).
         # UI view excludes compaction rows, so the chat history always shows
         # the full real conversation.
@@ -1277,6 +1284,7 @@ class ChatSession:
                     }))
 
                 elif isinstance(event, PermissionRequest):
+                    self._current_permission = event.description
                     self._broadcast(ChatEvent("permission_request", {
                         "description": event.description,
                     }))
@@ -1296,6 +1304,13 @@ class ChatSession:
                         # Always clean up — prevents dangling event objects
                         ctx.web_input_event = None
                         ctx.web_input_value = ""
+                    # Clear the pending permission BEFORE broadcasting the
+                    # response, so a client reconnecting in the gap between the
+                    # two can't catch a stale `permission_request` with no
+                    # following `permission_response` (which would leave a
+                    # stuck approval card). server.py reads _current_permission
+                    # once on connect to decide whether to retransmit.
+                    self._current_permission = None
                     self._broadcast(ChatEvent("permission_response", {
                         "granted": event.granted,
                     }))
