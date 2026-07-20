@@ -1113,7 +1113,7 @@ class ChatSession:
 
         ctx = runtime.get_session_ctx(self.session_id)
         ctx.in_web_turn = True
-        system_prompt = build_system_prompt(self.config)
+        system_prompt = build_system_prompt(self.config, include=list(_get_web_commands().keys()))
 
         text_chunks: list[str] = []
         tool_calls: list[dict] = []

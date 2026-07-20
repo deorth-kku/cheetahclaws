@@ -259,13 +259,16 @@ def _tmux_available() -> bool:
         return False
 
 
-def _render_commands_block() -> str:
+def _render_commands_block(include: list[str] | None = None) -> str:
     """Render a markdown list of every registered slash command.
 
     Pulls live from ``cheetahclaws._CMD_META`` (lazy import to avoid the
     cheetahclaws -> context -> cheetahclaws circular at module load), so
     the prompt always reflects the current command surface — including
     plugins merged in via ``_load_external_commands_into``.
+
+    When ``include`` is a non-empty list, only those commands are shown.
+    When ``include`` is ``None`` (default), all registered commands are shown.
 
     Without this block the model has no idea what `/trading`,
     `/research`, `/lab`, `/web`, `/wechat` etc. are and will confabulate
@@ -278,6 +281,10 @@ def _render_commands_block() -> str:
     meta = getattr(_cc, "_CMD_META", None)
     if not meta:
         return ""
+
+    # Filter: when ``include`` is a non-empty list, restrict to those names.
+    if include:
+        meta = {k: v for k, v in meta.items() if k in include}
 
     lines = [
         "# Available Slash Commands (User-invokable in this CheetahClaws session)",
@@ -404,7 +411,8 @@ def _apply_disabled_tools(prompt: str, disabled: set) -> str:
     return _drop_empty_subsections(lines)
 
 
-def build_system_prompt(config: dict | None = None) -> str:
+def build_system_prompt(config: dict | None = None,
+                        include: list[str] | None = None) -> str:
     """Build the full system prompt for the current session.
 
     Structure (top → bottom):
@@ -415,6 +423,9 @@ def build_system_prompt(config: dict | None = None) -> str:
         4. Memory index (if any memories exist)
         5. Tmux fragment (if tmux is installed)
         6. Plan-mode fragment (if ``permission_mode == "plan"``)
+
+    ``include`` is an optional list of command names to restrict the
+    slash-command index to.  ``None`` (default) shows all commands.
     """
     # Resolve provider lazily to avoid circular imports at module load.
     from cheetahclaws.providers import detect_provider
@@ -432,7 +443,7 @@ def build_system_prompt(config: dict | None = None) -> str:
         _render_env_block(cfg),
     ]
 
-    cmds_block = _render_commands_block()
+    cmds_block = _render_commands_block(include)
     if cmds_block:
         parts.append(cmds_block)
 
