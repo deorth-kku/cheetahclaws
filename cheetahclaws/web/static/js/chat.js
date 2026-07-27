@@ -440,8 +440,10 @@ class ChatApp {
     switch (evt.type) {
       case 'text_chunk':
         this._removeActivity();
-        // Reasoning phase is over; collapse the thinking trace (unless the
-        // user wants verbose output) before the answer starts streaming.
+        // Reasoning phase is over; mark thinking as complete and collapse
+        // the trace (unless the user wants verbose output) before the answer
+        // starts streaming.
+        this._finishThinking();
         this._collapseThinking();
         if (!this._curMsgEl) this._startAssistantStream();
         this._textBuf += evt.data.text;
@@ -461,11 +463,11 @@ class ChatApp {
         break;
       case 'tool_start':
         this._removeActivity();
-        // A tool call ends the current reasoning phase. Collapse the trace
-        // (unless verbose) and reset the live thinking reference so any
-        // thinking emitted *after* the tool spawns a fresh card instead of
-        // appending to the pre-tool trace. Mirrors the api.py block
-        // accumulation (a tool block splits thinking).
+        // A tool call ends the current reasoning phase. Mark thinking
+        // complete, collapse the trace (unless verbose), and reset the live
+        // thinking reference so any thinking emitted *after* the tool spawns
+        // a fresh card instead of appending to the pre-tool trace.
+        this._finishThinking();
         this._collapseThinking();
         this._thinkEl = null;
         this._thinkBuf = '';
@@ -493,7 +495,8 @@ class ChatApp {
         break;
       case 'turn_done':
         this._removeActivity();
-        // Collapse any thinking still open once the turn is fully done.
+        // Mark thinking complete and collapse any still-open trace.
+        this._finishThinking();
         this._collapseThinking();
         this._finishTurn(evt.data.input_tokens, evt.data.output_tokens);
         break;
@@ -615,6 +618,21 @@ class ChatApp {
     if (this._thinkEl && !this.getVerbose()) {
       const det = this._thinkEl.querySelector('details');
       if (det) det.open = false;
+    }
+  }
+
+  // Mark the live thinking block as finished: change the title from
+  // "Thinking" → "Thinking complete". Called when the reasoning phase ends
+  // (text_chunk, turn_done) — NOT from tool_start, which resets _thinkEl for
+  // a fresh thinking block after the tool runs.
+  _finishThinking() {
+    if (!this._thinkEl) return;
+    const summary = this._thinkEl.querySelector('summary');
+    if (!summary) return;
+    const icon = summary.querySelector('.th-icon');
+    const textNode = icon ? icon.nextSibling : summary.firstChild;
+    if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+      textNode.textContent = 'Thinking complete';
     }
   }
 
