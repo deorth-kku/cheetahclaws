@@ -392,6 +392,7 @@ class ChatApp {
                 }
               } else if (evt.type === 'done') {
                 this._removeActivity();
+                this._finishTurn();
                 this.loadSessions();
               } else {
                 this._handleEvent(evt);
@@ -399,9 +400,17 @@ class ChatApp {
             } catch(e) { /* skip bad JSON */ }
           }
         }
-        reader.read().then(processChunk);
+        reader.read().then(processChunk).catch(err => {
+          console.warn('[chat] SSE reader error:', err);
+          this._finishTurn();
+          this.loadSessions();
+        });
       };
-      reader.read().then(processChunk);
+      reader.read().then(processChunk).catch(err => {
+        console.warn('[chat] SSE initial read error:', err);
+        this._finishTurn();
+        this.loadSessions();
+      });
     }).catch(err => {
       this._removeActivity();
       this._addError('Connection error: ' + err.message);
