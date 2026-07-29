@@ -791,5 +791,37 @@ class ChatApp {
     } else {
       doStop();
     }
+    // Auto-resolve any pending permission / ask so the agent isn't blocked
+    // waiting for user input before it can actually stop.
+    this._autoResolvePending();
+  }
+
+  // Send approve/ask_response for any pending cards so the agent can stop
+  // without requiring the user to manually interact.
+  _autoResolvePending() {
+    if (this._pendingApproval) {
+      // Auto-allow pending permission requests on stop.
+      if (this.ws && this.ws.readyState === 1) {
+        this.ws.send(JSON.stringify({type: 'approve', granted: false}));
+      } else {
+        fetch('/api/approve', {
+          method: 'POST', credentials: 'same-origin',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({session_id: this.sessionId, granted: false}),
+        }).catch(() => {});
+      }
+    }
+    if (this._pendingAsk) {
+      // Auto-answer pending AskUserQuestion with empty string on stop.
+      if (this.ws && this.ws.readyState === 1) {
+        this.ws.send(JSON.stringify({type: 'ask_response', value: ''}));
+      } else {
+        fetch('/api/ask-response', {
+          method: 'POST', credentials: 'same-origin',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({session_id: this.sessionId, value: ''}),
+        }).catch(() => {});
+      }
+    }
   }
 }
