@@ -281,11 +281,16 @@ def execute_tool(
         file_hint = ""
         fpath = (params or {}).get("file_path") if isinstance(params, dict) else None
         if fpath and isinstance(fpath, str):
-            file_hint = (
-                f"  Tip: this came from `{fpath}` — call "
-                f"`SummarizeLargeFile(file_path='{fpath}')` to get a "
-                f"complete chunked + map-reduce summary that fits."
+            # Check if SummarizeLargeFile is disabled — skip hint if so.
+            _slf_disabled = _normalize_disabled(
+                config.get("disabled_tools") if isinstance(config, dict) else None
             )
+            if "summarizelargefile" not in _slf_disabled:
+                file_hint = (
+                    f"  Tip: this came from `{fpath}` — call "
+                    f"`SummarizeLargeFile(file_path='{fpath}')` to get a "
+                    f"complete chunked + map-reduce summary that fits."
+                )
         result = (
             result[:first_half]
             + f"\n[... {truncated} chars truncated to keep total tool "
