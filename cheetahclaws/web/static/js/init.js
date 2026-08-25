@@ -16,6 +16,7 @@ promptInput.addEventListener('keydown', (e) => {
 promptInput.addEventListener('input', () => {
   promptInput.style.height = 'auto';
   promptInput.style.height = Math.min(promptInput.scrollHeight, 200) + 'px';
+  app._updateSendButton();
 });
 
 /* ── Image attachment ───────────────────────────────────────────── */

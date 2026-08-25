@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -31,13 +32,45 @@ __all__ = [
 
 @dataclass
 class AgentState:
-    """Mutable session state. messages use the neutral provider-independent format."""
+    """Mutable session state. messages use the neutral provider-independent format.
+
+    ``pending_user_turns`` is a thread-safe queue of steer messages the user
+    submitted mid-run. ``steer()`` appends (from the input/CLI thread) and
+    ``drain_pending_steers()`` empties it (called from ``run()``). See
+    cheetahclaws.web.api.ChatSession.steer for the web entry point.
+    """
     messages: list = field(default_factory=list)
     total_input_tokens:  int = 0
     total_output_tokens: int = 0
     total_cache_read_tokens:  int = 0
     total_cache_write_tokens: int = 0
     turn_count: int = 0
+    # Live steer queue consumed at the top of every run() loop iteration.
+    # Guarded by _steer_lock so steer() (input thread) and drain_pending_steers()
+    # (agent thread) never race. The list is a small bounded set of short
+    # strings, so a plain list is sufficient.
+    pending_user_turns: list = field(default_factory=list)
+    _steer_lock: threading.Lock = field(default_factory=threading.Lock)
+
+    def steer(self, text: str) -> None:
+        """Queue a steer message to be injected as a user turn before the next
+        API call in the current run(). Thread-safe."""
+        with self._steer_lock:
+            self.pending_user_turns.append(text)
+
+    def drain_pending_steers(self) -> list[str]:
+        """Pop and return all queued steer messages, clearing the list.
+        Thread-safe."""
+        with self._steer_lock:
+            if not self.pending_user_turns:
+                return []
+            drained = list(self.pending_user_turns)
+            self.pending_user_turns.clear()
+            return drained
+
+    def has_pending_steers(self) -> bool:
+        with self._steer_lock:
+            return bool(self.pending_user_turns)
 
 
 @dataclass
@@ -161,6 +194,14 @@ def run(
     while True:
         if cancel_check and cancel_check():
             return
+
+        # Inject any steers the user submitted mid-run as fresh user turns,
+        # positioned right after the prior assistant/tool result and before
+        # the next API request. Top-level only: sub-agents (depth > 0) get
+        # their own run() and must not consume the parent's steer queue.
+        if depth == 0:
+            for _steer_text in state.drain_pending_steers():
+                state.messages.append({"role": "user", "content": _steer_text})
         # Re-snapshot from the live config so Behavior-panel edits made via the
         # web UI (permission_mode, thinking, verbose, max_tokens, …) take effect
         # on the very next API call / permission check instead of waiting for the

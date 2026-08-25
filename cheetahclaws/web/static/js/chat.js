@@ -9,6 +9,7 @@ class ChatApp {
   constructor() {
     this.sessionId = null;
     this.ws = null;
+    this.running = false;
     this.streaming = false;
     this._textBuf = '';
     this._curMsgEl = null;
@@ -461,6 +462,13 @@ class ChatApp {
         this._removeActivity();
         this._appendNotice(evt.data.text || '', evt.data.kind || '');
         break;
+      case 'steer_queued':
+        // A steer submitted mid-run. Render it as a user bubble (marked) so
+        // the sender sees it was accepted; the agent injects it before its
+        // next API call and streams the response as usual.
+        this._removeActivity();
+        this._addUserSteerBubble(evt.data.text || '');
+        break;
       case 'tool_start':
         this._removeActivity();
         // A tool call ends the current reasoning phase. Mark thinking
@@ -566,6 +574,18 @@ class ChatApp {
       bubble.appendChild(imgEl);
     }
     if (text) bubble.appendChild(document.createTextNode(text));
+    document.getElementById('messages').appendChild(el);
+    this._scrollBottom();
+  }
+
+  // Render a steer message the user injected mid-run. Marked distinctly so
+  // it's clear it was queued while the agent was already working.
+  _addUserSteerBubble(text) {
+    if (!text || !text.trim()) return;
+    const el = document.createElement('div');
+    el.className = 'msg user steer';
+    el.innerHTML = `<div class="role-tag">Steered</div><div class="bubble"></div>`;
+    el.querySelector('.bubble').appendChild(document.createTextNode(text));
     document.getElementById('messages').appendChild(el);
     this._scrollBottom();
   }
@@ -748,9 +768,24 @@ class ChatApp {
   // ── Send / Stop toggle ───────────────────────────────────────────
 
   setRunning(running) {
+    this.running = running;
+    this._updateSendButton();
+  }
+
+  // Three-state send/stop/steer button:
+  //   idle              → "Send"   (mode: send)
+  //   running, empty    → "Stop"   (mode: stop)
+  //   running, has text → "Steer"  (mode: steer)
+  _updateSendButton() {
     const btn = document.getElementById('send-btn');
     if (!btn) return;
-    if (running) {
+    const input = document.getElementById('prompt-input');
+    const hasText = !!(input && input.value && input.value.trim());
+    if (this.running && hasText) {
+      btn.textContent = 'Steer';
+      btn.classList.remove('stop');
+      btn.dataset.mode = 'steer';
+    } else if (this.running) {
       btn.textContent = 'Stop';
       btn.classList.add('stop');
       btn.dataset.mode = 'stop';
@@ -765,8 +800,42 @@ class ChatApp {
     const btn = document.getElementById('send-btn');
     if (btn && btn.dataset.mode === 'stop') {
       this.stop();
+    } else if (btn && btn.dataset.mode === 'steer') {
+      this.sendSteer();
     } else {
       this.send();
+    }
+  }
+
+  // Submit a steer (mid-run injection). Sent via WS when available, else the
+  // HTTP /api/prompt path (which routes busy prompts to ChatSession.steer()).
+  // The sending client does NOT render a bubble — the server echoes a
+  // steer_queued event that renders it, keeping the queue list consistent.
+  async sendSteer() {
+    const input = document.getElementById('prompt-input');
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    input.style.height = 'auto';
+    this._updateSendButton();
+    try {
+      if (this.ws && this.ws.readyState === 1) {
+        this.ws.send(JSON.stringify({type: 'steer', prompt: text}));
+      } else {
+        await this._ensureWS();
+        if (this.ws && this.ws.readyState === 1) {
+          this.ws.send(JSON.stringify({type: 'steer', prompt: text}));
+        } else {
+          await this._fetchAuth('/api/prompt', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({prompt: text, session_id: this.sessionId}),
+          });
+        }
+      }
+    } catch(e) {
+      input.value = text;
+      this._addError('Failed to steer: ' + e.message);
     }
   }
 

@@ -300,6 +300,9 @@ body.resizing { cursor:col-resize; user-select:none; }
 .msg { max-width:min(720px,92%); animation:fadeIn .2s ease; }
 @keyframes fadeIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
 .msg.user { align-self:flex-end; max-width:min(680px,88%); }
+.msg.user.steer { opacity:.62; align-self:flex-end; }
+.msg.user.steer .role-tag { background:var(--accent-dim); color:var(--text-primary); }
+.msg.user.steer .bubble { background:var(--surface-dim); }
 .msg.user .bubble {
   background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
   border-bottom-right-radius:3px; padding:10px 14px; white-space:pre-wrap;

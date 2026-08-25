@@ -998,6 +998,10 @@ def _handle_chat_websocket(sock: socket.socket, extra: bytes,
                                 obj.get("value", ""))
                         elif msg_type == "stop":
                             chat_session.request_stop()
+                        elif msg_type == "steer":
+                            # Mid-run injection; if idle this becomes a normal
+                            # prompt via ChatSession.steer().
+                            chat_session.steer(obj.get("prompt", ""))
                         elif msg_type == "prompt":
                             chat_session.submit_prompt(
                                 obj.get("prompt", ""))
@@ -1664,12 +1668,10 @@ def _handle_connection(sock: socket.socket, addr: tuple) -> None:
             if prompt:
                 accepted = chat_sess.submit_prompt(prompt)
             if not accepted:
-                _send_http(sock, "409 Conflict", "application/json",
-                           json.dumps({"error": "agent is busy",
-                                       "session_id": chat_sess.session_id}).encode(),
-                           request_origin=origin)
-                sock.close()
-                return
+                # Busy: treat the prompt as a steer (mid-run injection) rather
+                # than rejecting it, so the SSE/HTTP fallback path supports the
+                # same steer behavior as the WebSocket path.
+                chat_sess.steer(prompt)
             _send_json(sock, {"session_id": chat_sess.session_id},
                        request_origin=origin)
             sock.close()

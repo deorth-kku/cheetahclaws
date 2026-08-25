@@ -366,6 +366,12 @@ class ChatSession:
                 get_logger("api").exception(
                     "agent history rehydrate failed",
                     extra={"session_id": self.session_id, "err": str(exc)})
+        # Live in-progress assistant row (created by _run_agent's incremental
+        # persistence). Initialized here so steer() can reference it even
+        # before the first run() has started.
+        self._live_mid: Optional[int] = None
+        self._live_msg: Optional[dict] = None
+
         ctx = runtime.get_session_ctx(self.session_id)
         ctx.agent_state = self._agent_state
         ctx.run_query = lambda msg: self.submit_prompt(msg)
@@ -740,21 +746,104 @@ class ChatSession:
         self._broadcast(ChatEvent("status", {"state": "running"}))
 
         def _run():
+            self._run_turn_loop(prompt)
+
+        self._agent_thread = threading.Thread(target=_run, daemon=True)
+        self._agent_thread.start()
+        return True
+
+    def _run_turn_loop(self, prompt: str):
+        """Run ``prompt``, then auto-start new turns from residual steers that
+        survived each turn.
+
+        A residual steer is one queued AFTER the final API call of a turn (so
+        ``run()`` never drained it). Those become the next prompt in the same
+        thread — mirroring Claude Code auto-starting a new turn. Steers
+        injected mid-run are consumed by ``run()`` and never reach here.
+        """
+        first_turn = True
+        while prompt:
+            if not first_turn:
+                # A residual steer auto-started a new turn; signal running so
+                # the UI doesn't flash idle between turns.
+                self._broadcast(ChatEvent("status", {"state": "running"}))
+            first_turn = False
             self._busy.set()
             self._cancelled.clear()
             try:
                 self._run_agent(prompt)
+                leftovers = self._agent_state.drain_pending_steers()
+                prompt = leftovers[0] if leftovers else None
             except Exception as exc:
                 self._broadcast(ChatEvent("error", {
                     "message": str(exc),
                     "traceback": traceback.format_exc(),
                 }))
+                prompt = None  # abort the residual loop on error
             finally:
                 self._busy.clear()
                 self._broadcast(ChatEvent("status", {"state": "idle"}))
 
-        self._agent_thread = threading.Thread(target=_run, daemon=True)
-        self._agent_thread.start()
+    def steer(self, prompt: str) -> bool:
+        """Inject a steer message mid-run (Claude Code "steer" semantics).
+
+        If the agent is idle this behaves exactly like submit_prompt() so the
+        message starts a normal turn. When busy, the text is persisted as a
+        user turn and queued for injection before the agent's NEXT API call.
+        Residual steers that survive a full turn are auto-started as a new
+        turn by submit_prompt()'s residual loop.
+        """
+        # Slash commands are handled locally (don't send to LLM), matching
+        # submit_prompt(). A steer that starts with '/' is therefore treated
+        # as a command, not injected as a user turn.
+        if prompt.startswith("/"):
+            return self._handle_slash(prompt)
+
+        if not self._busy.is_set():
+            return self.submit_prompt(prompt)
+
+        # Busy: persist the steer as a user turn and queue it for the next API
+        # call via the shared AgentState steer queue.
+        self.last_active = time.monotonic()
+        with self._sub_lock:
+            self._event_buffer.clear()
+
+        # Persist + cache the user turn for UI replay (mirrors submit_prompt's
+        # _append_msg, but without a status transition — the turn is already
+        # running).
+        from cheetahclaws.web import db as _db
+        try:
+            _db.repo.append_message(self.session_id, "user", prompt)
+        except Exception:
+            pass
+        with self._msg_lock:
+            self.messages.append({"role": "user", "content": prompt})
+
+        # Order-fix for reload: the in-progress assistant row was created at a
+        # smaller DB id. Drop it now so the next streamed event rebuilds it
+        # with a larger id, keeping DB order …assistant(partial) → user(steer)
+        # → assistant(continued) instead of …assistant(continued) → user(steer)
+        # → assistant(partial). Safe to call when no live row exists.
+        if self._live_mid is not None:
+            try:
+                _db.repo.delete_message(self._live_mid)
+            except Exception:
+                pass
+            if self._live_msg is not None:
+                with self._msg_lock:
+                    try:
+                        self.messages.remove(self._live_msg)
+                    except ValueError:
+                        pass
+            self._live_mid = None
+            self._live_msg = None
+
+        # Queue for the agent's next API call (top-level run() drains this).
+        self._agent_state.steer(prompt)
+
+        # Acknowledge to clients so they render a steer bubble and the sending
+        # client knows it was accepted (the sender does NOT locally render).
+        self._broadcast(ChatEvent("steer_queued", {"text": prompt}))
         return True
 
     def _handle_slash(self, line: str) -> bool:
@@ -1152,21 +1241,22 @@ class ChatSession:
         # client round-trip required.  We lazily create one assistant row on
         # the first streamed event, then patch its content + ordered blocks
         # on every subsequent event.
-        _live_mid: Optional[int] = None
-        _live_msg: Optional[dict] = None
+        # Stored on the instance (not a closure local) so steer() can
+        # invalidate the in-progress assistant row to fix ordering on reload.
+        self._live_mid: Optional[int] = None
+        self._live_msg: Optional[dict] = None
 
         def _ensure_live():
-            nonlocal _live_mid, _live_msg
-            if _live_mid is not None:
+            if self._live_mid is not None:
                 return
             try:
                 from cheetahclaws.web import db as _db
                 mid = _db.repo.append_message(self.session_id, "assistant", "")
-                _live_msg = {"role": "assistant", "content": "",
-                             "blocks": [], "id": mid}
-                _live_mid = mid
+                self._live_msg = {"role": "assistant", "content": "",
+                                  "blocks": [], "id": mid}
+                self._live_mid = mid
                 with self._msg_lock:
-                    self.messages.append(_live_msg)
+                    self.messages.append(self._live_msg)
             except Exception as exc:  # noqa: BLE001
                 from cheetahclaws.web.logging_setup import get_logger
                 get_logger("api").exception(
@@ -1174,17 +1264,17 @@ class ChatSession:
                     extra={"session_id": self.session_id, "err": str(exc)})
 
         def _flush_live():
-            if _live_mid is None or _live_msg is None:
+            if self._live_mid is None or self._live_msg is None:
                 return
             _final_text = "".join(text_chunks)
             _clean = [b for b in blocks if not (
                 b.get("type") == "text" and not (b.get("text") or "").strip()
             )]
-            _live_msg["content"] = _final_text
-            _live_msg["blocks"] = _clean
+            self._live_msg["content"] = _final_text
+            self._live_msg["blocks"] = _clean
             try:
                 from cheetahclaws.web import db as _db
-                _db.repo.update_message(_live_mid, _final_text, None,
+                _db.repo.update_message(self._live_mid, _final_text, None,
                                         _clean or None)
             except Exception as exc:  # noqa: BLE001
                 from cheetahclaws.web.logging_setup import get_logger
@@ -1196,22 +1286,21 @@ class ChatSession:
             """Delete an abandoned in-progress assistant row (e.g. a turn that
             errored or yielded nothing), and remove it from the in-memory
             cache so it never reaches the UI."""
-            nonlocal _live_mid, _live_msg
-            if _live_mid is None:
+            if self._live_mid is None:
                 return
             try:
                 from cheetahclaws.web import db as _db
-                _db.repo.delete_message(_live_mid)
-            except Exception:  # noqa: BLE001
+                _db.repo.delete_message(self._live_mid)
+            except Exception:
                 pass
-            if _live_msg is not None:
+            if self._live_msg is not None:
                 with self._msg_lock:
                     try:
-                        self.messages.remove(_live_msg)
+                        self.messages.remove(self._live_msg)
                     except ValueError:
                         pass
-            _live_mid = None
-            _live_msg = None
+            self._live_mid = None
+            self._live_msg = None
 
         try:
             for event in run(prompt, self._agent_state, self.config,
