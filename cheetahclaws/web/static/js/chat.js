@@ -469,11 +469,11 @@ class ChatApp {
         break;
       case 'steer_queued':
         // A steer submitted mid-run. Render it as a dimmed user bubble so
-        // the sender sees it was accepted; it stays dimmed until the backend
-        // confirms the steer was actually injected (steer_applied), at which
-        // point it is moved to that position and brightened into a normal
-        // user message.
-        this._removeActivity();
+        // the sender sees it was accepted. Do NOT clear the activity spinner
+        // here: the agent is still working on the previous turn, so the
+        // spinner must stay until the steer actually takes effect
+        // (steer_applied) or new output arrives. The bubble stays dimmed and
+        // pinned to the bottom until then.
         this._addUserSteerBubble(evt.data.text || '');
         break;
       case 'steer_applied':
