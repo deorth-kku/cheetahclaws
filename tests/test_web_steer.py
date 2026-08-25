@@ -92,13 +92,15 @@ def test_steer_when_busy_persists_queues_and_broadcasts(session, monkeypatch):
     assert q.data.get("text") == "mid-run instruction"
 
 
-def test_steer_when_busy_drops_live_assistant_row(session, monkeypatch):
-    """A steer while an assistant row is live must drop that row so a later
-    streamed event rebuilds it with a larger DB id — keeping reload order
-    …assistant(partial) → user(steer) → assistant(continued).
+def test_steer_when_busy_keeps_partial_assistant_row(session, monkeypatch):
+    """A steer while an assistant row is live must KEEP that partial row so
+    it renders BEFORE the steer user message on reload, then stop tracking it
+    so the next streamed event opens a fresh continuation row at a larger id.
 
-    Dropping the old (lower-id) live row means the next streamed assistant
-    event is created with a HIGHER id, landing after the steer user turn.
+    Reload order therefore stays …assistant(partial) → user(steer)
+    (the partial answer must NOT vanish, and the steer must NOT land next to
+    the earlier user input). _ensure_live() resets the output accumulators
+    when it opens the fresh continuation row.
     """
     db, sid, uid = session
     chat = _make_chat(db, sid, uid)
@@ -106,7 +108,7 @@ def test_steer_when_busy_drops_live_assistant_row(session, monkeypatch):
     chat._busy.set()
     monkeypatch.setattr(chat, "_broadcast", lambda ev: None)
 
-    # Simulate a live assistant row already created at some id.
+    # Simulate a live assistant row (partial output) already created at some id.
     mid = db.repo.append_message(sid, "assistant", "partial")
     chat._live_mid = mid
     chat._live_msg = {"role": "assistant", "content": "partial",
@@ -115,14 +117,16 @@ def test_steer_when_busy_drops_live_assistant_row(session, monkeypatch):
 
     chat.steer("steer after partial")
 
-    # The old live row was dropped (so reload ordering stays correct).
+    # The live pointer is dropped (next event opens a fresh row), but the
+    # partial row itself is KEPT in the DB and in-memory cache.
     assert chat._live_mid is None
     assert chat._live_msg is None
     ui = db.repo.get_messages_for_ui(sid)
-    assert [m["role"] for m in ui] == ["user"], ui
-    assert ui[0]["content"] == "steer after partial"
-    # The dropped assistant row is truly gone from the DB.
-    assert all(m["content"] != "partial" for m in db.repo.get_messages_for_ui(sid))
+    assert [m["role"] for m in ui] == ["assistant", "user"], ui
+    assert ui[0]["content"] == "partial"                       # partial kept
+    assert ui[1]["content"] == "steer after partial"           # steer after it
+    # The partial assistant content is truly still there (not dropped).
+    assert any(m["content"] == "partial" for m in ui)
     # The steer was still queued for the agent's next API call.
     assert chat._agent_state.drain_pending_steers() == ["steer after partial"]
 

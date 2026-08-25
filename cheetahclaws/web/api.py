@@ -819,22 +819,15 @@ class ChatSession:
         with self._msg_lock:
             self.messages.append({"role": "user", "content": prompt})
 
-        # Order-fix for reload: the in-progress assistant row was created at a
-        # smaller DB id. Drop it now so the next streamed event rebuilds it
-        # with a larger id, keeping DB order …assistant(partial) → user(steer)
-        # → assistant(continued) instead of …assistant(continued) → user(steer)
-        # → assistant(partial). Safe to call when no live row exists.
+        # Order-fix for reload: keep the in-progress assistant row (its
+        # already-streamed partial output) in place so it renders BEFORE the
+        # steer user message. Only stop tracking it, so the next streamed
+        # event starts a fresh continuation row at a larger id. That yields
+        # reload order …assistant(partial) → user(steer) → assistant(continued)
+        # instead of dropping the partial row and leaving the steer stranded
+        # next to the earlier user input with the answer missing. _ensure_live()
+        # resets the output accumulators when it opens that fresh row.
         if self._live_mid is not None:
-            try:
-                _db.repo.delete_message(self._live_mid)
-            except Exception:
-                pass
-            if self._live_msg is not None:
-                with self._msg_lock:
-                    try:
-                        self.messages.remove(self._live_msg)
-                    except ValueError:
-                        pass
             self._live_mid = None
             self._live_msg = None
 
@@ -1249,6 +1242,17 @@ class ChatSession:
         def _ensure_live():
             if self._live_mid is not None:
                 return
+            # Starting a fresh in-progress row — either the turn's very first
+            # streamed event, or a NEW row created after a mid-run steer split
+            # one logical assistant turn into …(partial) | user(steer) |
+            # (continued). Reset the output accumulators so the fresh row does
+            # NOT re-emit content already flushed into the previous row (which
+            # is now kept as a separate, earlier DB row).
+            nonlocal text_chunks, tool_calls, blocks, _cur_block
+            text_chunks = []
+            tool_calls = []
+            blocks = []
+            _cur_block = None
             try:
                 from cheetahclaws.web import db as _db
                 mid = _db.repo.append_message(self.session_id, "assistant", "")
@@ -1444,13 +1448,13 @@ class ChatSession:
             # A final flush here guarantees the row reflects the completed turn
             # (and also covers the degenerate case where the turn produced no
             # streamed events at all — nothing to clean up).
-            if _live_mid is not None:
+            if self._live_mid is not None:
                 _flush_live()
                 # Drop a row that ended up empty (no text and no blocks), so a
                 # reconnect doesn't render a blank assistant bubble.
-                if _live_msg is not None and not (
-                        _live_msg.get("content")
-                        or _live_msg.get("blocks")):
+                if self._live_msg is not None and not (
+                        self._live_msg.get("content")
+                        or self._live_msg.get("blocks")):
                     _drop_live()
 
         except Exception as exc:
