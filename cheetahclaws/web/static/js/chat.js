@@ -628,9 +628,22 @@ class ChatApp {
   // the thread, below any assistant output streaming in right now. Called from
   // _scrollBottom after each render. Once a steer is finalized it is removed
   // from _pendingSteers and stops being re-pinned (it locks into place).
+  //
+  // Only touch the DOM when a steer is actually out of place: if the pending
+  // steers already occupy the last N slots in order, skip the appendChild
+  // calls entirely, since re-appending an already-last node forces a repaint
+  // every frame and makes the dim bubble appear to flicker while streaming.
   _keepSteersAtBottom() {
     const container = document.getElementById('messages');
     if (!this._pendingSteers.length || !container) return;
+    const n = this._pendingSteers.length;
+    let matched = 0;
+    for (let node = container.lastElementChild; node && matched < n;
+         node = node.previousElementSibling) {
+      if (node !== this._pendingSteers[n - 1 - matched]) break;
+      matched++;
+    }
+    if (matched === n) return;  // already pinned correctly — no repaint
     for (const el of this._pendingSteers) container.appendChild(el);
   }
 
