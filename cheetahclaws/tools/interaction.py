@@ -171,6 +171,14 @@ def _ask_user_question(
                     ).strip()
                 print(f"Invalid option: {idx}")
                 continue
+            # `ask_input_interactive` already resolved the digit to the
+            # canonical label (e.g. "1" -> "Alpha"), so a non-digit `raw`
+            # here is the chosen label. Match it before rejecting, otherwise
+            # a valid selection loops forever (and floods pytest's stdout
+            # capture buffer until it OOMs).
+            labels = {opt.get("label", "") for opt in options}
+            if raw in labels:
+                return raw
             if allow_freetext:
                 return raw
             print("Please choose a number from the list.")
