@@ -92,6 +92,55 @@ def test_steer_when_busy_persists_queues_and_broadcasts(session, monkeypatch):
     assert q.data.get("text") == "mid-run instruction"
 
 
+def test_steer_carries_image_into_queue_and_event(session, monkeypatch):
+    """A steer with an attached image queues the image on AgentState so run()
+    injects it into the next API call, and echoes text+image+type to clients."""
+    db, sid, uid = session
+    chat = _make_chat(db, sid, uid)
+    chat._busy.set()
+    events = []
+    monkeypatch.setattr(chat, "_broadcast", lambda ev: events.append(ev))
+
+    assert chat.steer("look at this", "BASE64IMG", image_type="image/png") is True
+
+    # Queued full entry (text + image) for run() to drain.
+    entry = chat._agent_state.drain_pending_steers_full()[0]
+    assert entry["text"] == "look at this"
+    assert entry["image"] == "BASE64IMG"
+
+    q = next(e for e in events if e.type == "steer_queued")
+    assert q.data["text"] == "look at this"
+    assert q.data["image"] == "BASE64IMG"
+    assert q.data["imageType"] == "image/png"
+
+
+def test_run_injects_steer_image_into_user_message(monkeypatch):
+    """agent.run() attaches a steered image to the injected user turn so the
+    next API call carries it — the web image-steer path."""
+    from cheetahclaws import agent
+    from cheetahclaws.agent import AgentState
+
+    seen_messages = []
+
+    def fake_stream(**kwargs):
+        seen_messages.append(kwargs["messages"])
+        yield agent._turn(text="ok")
+
+    monkeypatch.setattr(agent, "stream", fake_stream)
+
+    state = AgentState()
+    state.steer("look at this", "IMGDATA", image_type="image/jpeg")
+    list(agent.run("", state, _base_config(), "system"))
+
+    # The steered user message (empty text, image attached) reached the API.
+    assert seen_messages, "no API call was made"
+    user_msgs = [m for m in seen_messages[0] if m.get("role") == "user"]
+    injected = [m for m in user_msgs if m.get("images")]
+    assert injected, "no steered user message carried the image"
+    assert injected[-1]["images"] == ["IMGDATA"]
+    assert injected[-1]["content"] == ""
+
+
 def test_steer_when_busy_keeps_partial_assistant_row(session, monkeypatch):
     """A steer while an assistant row is live must KEEP that partial row so
     it renders BEFORE the steer user message on reload, then stop tracking it
@@ -204,3 +253,61 @@ def test_run_turn_loop_aborts_on_error(session, monkeypatch):
     chat._run_turn_loop("first")
 
     assert calls["n"] == 1  # error aborted the loop, residual never retried
+
+
+def test_has_pending_image(session, monkeypatch):
+    """_has_pending_image reflects the RuntimeContext.pending_image flag."""
+    db, sid, uid = session
+    chat = _make_chat(db, sid, uid)
+    from cheetahclaws import runtime
+    ctx = runtime.get_session_ctx(chat.session_id)
+    assert chat._has_pending_image() is False
+    ctx.pending_image = "iVBORw0KGgo"
+    assert chat._has_pending_image() is True
+    ctx.pending_image = None
+    assert chat._has_pending_image() is False
+
+
+def test_run_turn_loop_runs_image_only_turn(session, monkeypatch):
+    """An image-only send (empty prompt text + a pending image) must still run
+    exactly one turn.
+
+    Regression: the old ``while prompt:`` guard skipped empty prompts, so an
+    image-only turn ran no agent, emitted no events, and the UI spinner never
+    cleared (the OpenAI API never received a request). The pending image is
+    consumed by ``run()`` (simulated here by clearing the flag), so the loop
+    runs once and then exits.
+    """
+    db, sid, uid = session
+    chat = _make_chat(db, sid, uid)
+    from cheetahclaws import runtime
+    runtime.get_session_ctx(chat.session_id).pending_image = "iVBORw0KGgo"
+
+    prompts = []
+
+    def fake_run_agent(prompt):
+        prompts.append(prompt)
+        # Real run() consumes the pending image (attaches it to the user
+        # message), so the loop must not spin again after this turn.
+        runtime.get_session_ctx(chat.session_id).pending_image = None
+
+    monkeypatch.setattr(chat, "_run_agent", fake_run_agent)
+    chat._run_turn_loop("")
+
+    assert prompts == [""]
+
+
+def test_run_turn_loop_no_prompt_no_image_runs_nothing(session, monkeypatch):
+    """With neither a prompt nor a pending image, the loop runs zero turns."""
+    db, sid, uid = session
+    chat = _make_chat(db, sid, uid)
+
+    calls = {"n": 0}
+
+    def fake_run_agent(prompt):
+        calls["n"] += 1
+
+    monkeypatch.setattr(chat, "_run_agent", fake_run_agent)
+    chat._run_turn_loop("")
+
+    assert calls["n"] == 0

@@ -1000,8 +1000,11 @@ def _handle_chat_websocket(sock: socket.socket, extra: bytes,
                             chat_session.request_stop()
                         elif msg_type == "steer":
                             # Mid-run injection; if idle this becomes a normal
-                            # prompt via ChatSession.steer().
-                            chat_session.steer(obj.get("prompt", ""))
+                            # prompt via ChatSession.steer(). The optional
+                            # image lets an attached image be steered too.
+                            chat_session.steer(
+                                obj.get("prompt", ""), obj.get("image"),
+                                image_type=obj.get("imageType"))
                         elif msg_type == "prompt":
                             chat_session.submit_prompt(
                                 obj.get("prompt", ""))
@@ -1664,6 +1667,8 @@ def _handle_connection(sock: socket.socket, addr: tuple) -> None:
                 }, request_origin=origin)
                 sock.close()
                 return
+            image = body_json.get("image")
+            image_type = body_json.get("imageType")
             accepted = True
             if prompt:
                 accepted = chat_sess.submit_prompt(prompt)
@@ -1671,7 +1676,10 @@ def _handle_connection(sock: socket.socket, addr: tuple) -> None:
                 # Busy: treat the prompt as a steer (mid-run injection) rather
                 # than rejecting it, so the SSE/HTTP fallback path supports the
                 # same steer behavior as the WebSocket path.
-                chat_sess.steer(prompt)
+                chat_sess.steer(prompt, image, image_type=image_type)
+            elif image:
+                # Image-only steer over HTTP (no text to submit).
+                chat_sess.steer("", image, image_type=image_type)
             _send_json(sock, {"session_id": chat_sess.session_id},
                        request_origin=origin)
             sock.close()

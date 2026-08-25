@@ -113,7 +113,11 @@ class ChatApp {
     reader.onload = () => {
       const dataUrl = reader.result;
       const b64 = dataUrl.split(',')[1] || '';
-      this._pendingImage = {name: file.name, dataUrl, b64};
+      // Keep the mime type so an image-only steer can rebuild a data URL for
+      // display: the server stores/forwards raw base64 (the provider adds the
+      // data: prefix itself), and the steer_queued echo only carries base64.
+      const type = file.type || (dataUrl.split(',')[0].replace('data:', '') || 'image/png');
+      this._pendingImage = {name: file.name, dataUrl, b64, type};
       this._renderAttachPreview();
     };
     reader.readAsDataURL(file);
@@ -123,19 +127,25 @@ class ChatApp {
     const el = document.getElementById('attach-preview');
     if (!el) return;
     el.innerHTML = '';
-    if (!this._pendingImage) return;
-    const chip = document.createElement('div');
-    chip.className = 'thumb';
-    chip.innerHTML =
-      `<img src="${this._pendingImage.dataUrl}">` +
-      `<span class="name"></span>` +
-      `<button class="rm" title="Remove">&times;</button>`;
-    chip.querySelector('.name').textContent = this._pendingImage.name;
-    chip.querySelector('.rm').onclick = () => {
-      this._pendingImage = null;
-      this._renderAttachPreview();
-    };
-    el.appendChild(chip);
+    if (this._pendingImage) {
+      const chip = document.createElement('div');
+      chip.className = 'thumb';
+      chip.innerHTML =
+        `<img src="${this._pendingImage.dataUrl}">` +
+        `<span class="name"></span>` +
+        `<button class="rm" title="Remove">&times;</button>`;
+      chip.querySelector('.name').textContent = this._pendingImage.name;
+      chip.querySelector('.rm').onclick = () => {
+        this._pendingImage = null;
+        this._renderAttachPreview();
+      };
+      el.appendChild(chip);
+    }
+    // Keep the send/stop/steer button in sync whenever the attached-image
+    // state changes (attach via _onImagePicked, or remove via the chip's ×),
+    // not only on text input. So an image attached mid-run flips Stop→Steer,
+    // and removing it flips Steer back to Stop.
+    this._updateSendButton();
   }
 
   async _uploadPendingImage() {
@@ -473,8 +483,13 @@ class ChatApp {
         // here: the agent is still working on the previous turn, so the
         // spinner must stay until the steer actually takes effect
         // (steer_applied) or new output arrives. The bubble stays dimmed and
-        // pinned to the bottom until then.
-        this._addUserSteerBubble(evt.data.text || '');
+        // pinned to the bottom until then. Rebuild the data URL from the
+        // echoed mime type + base64 (the server only carries raw base64).
+        let steerImg = null;
+        if (evt.data.image) {
+          steerImg = {dataUrl: 'data:' + (evt.data.imageType || 'image/png') + ';base64,' + evt.data.image};
+        }
+        this._addUserSteerBubble(evt.data.text || '', steerImg);
         break;
       case 'steer_applied':
         // The backend just injected the earliest pending steer into the next
@@ -613,12 +628,25 @@ class ChatApp {
   // so it's clear it was queued while the agent was already working. It stays
   // dimmed and pinned to the bottom (see _keepSteersAtBottom) until `steer_applied`
   // finalizes it (see _finalizePendingSteer).
-  _addUserSteerBubble(text) {
-    if (!text || !text.trim()) return;
+  _addUserSteerBubble(text, img) {
+    // An image-only steer (no text) still renders, so drop the early return
+    // when only an image is present.
+    if (!text || !text.trim()) {
+      if (!img || !img.dataUrl) return;
+    }
     const el = document.createElement('div');
     el.className = 'msg user steer';
     el.innerHTML = `<div class="role-tag">Steered</div><div class="bubble"></div>`;
-    el.querySelector('.bubble').appendChild(document.createTextNode(text));
+    const bubble = el.querySelector('.bubble');
+    if (img && img.dataUrl) {
+      const imgEl = document.createElement('img');
+      imgEl.src = img.dataUrl;
+      imgEl.style.cssText =
+        'display:block;max-width:240px;max-height:240px;border-radius:8px;'
+        + 'margin-bottom:6px;';
+      bubble.appendChild(imgEl);
+    }
+    if (text) bubble.appendChild(document.createTextNode(text));
     this._pendingSteers.push(el);
     document.getElementById('messages').appendChild(el);
     this._scrollBottom();
@@ -855,15 +883,18 @@ class ChatApp {
   }
 
   // Three-state send/stop/steer button:
-  //   idle              → "Send"   (mode: send)
-  //   running, empty    → "Stop"   (mode: stop)
-  //   running, has text → "Steer"  (mode: steer)
+  //   idle                    → "Send"   (mode: send)
+  //   running, no content     → "Stop"   (mode: stop)
+  //   running, text or image  → "Steer"  (mode: steer)
+  // A pending image counts as steer content too, otherwise an attached image
+  // with no typed text would only offer "Stop", never "Steer".
   _updateSendButton() {
     const btn = document.getElementById('send-btn');
     if (!btn) return;
     const input = document.getElementById('prompt-input');
     const hasText = !!(input && input.value && input.value.trim());
-    if (this.running && hasText) {
+    const hasSteerContent = hasText || !!this._pendingImage;
+    if (this.running && hasSteerContent) {
       btn.textContent = 'Steer';
       btn.classList.remove('stop');
       btn.dataset.mode = 'steer';
@@ -896,27 +927,35 @@ class ChatApp {
   async sendSteer() {
     const input = document.getElementById('prompt-input');
     const text = input.value.trim();
-    if (!text) return;
+    const img = this._pendingImage;
+    // Nothing to steer (no text and no attached image) — leave input as-is.
+    if (!text && !img) return;
+    const image = img ? img.b64 : null;
+    const imageType = img ? img.type : null;
     input.value = '';
     input.style.height = 'auto';
+    this._pendingImage = null;
+    this._renderAttachPreview();
     this._updateSendButton();
     try {
       if (this.ws && this.ws.readyState === 1) {
-        this.ws.send(JSON.stringify({type: 'steer', prompt: text}));
+        this.ws.send(JSON.stringify({type: 'steer', prompt: text, image, imageType}));
       } else {
         await this._ensureWS();
         if (this.ws && this.ws.readyState === 1) {
-          this.ws.send(JSON.stringify({type: 'steer', prompt: text}));
+          this.ws.send(JSON.stringify({type: 'steer', prompt: text, image, imageType}));
         } else {
           await this._fetchAuth('/api/prompt', {
             method: 'POST',
             headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({prompt: text, session_id: this.sessionId}),
+            body: JSON.stringify({prompt: text, image, imageType, session_id: this.sessionId}),
           });
         }
       }
     } catch(e) {
       input.value = text;
+      this._pendingImage = img;
+      this._renderAttachPreview();
       this._addError('Failed to steer: ' + e.message);
     }
   }

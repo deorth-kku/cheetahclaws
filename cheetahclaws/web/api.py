@@ -759,6 +759,18 @@ class ChatSession:
         self._agent_thread.start()
         return True
 
+    def _has_pending_image(self) -> bool:
+        """True if this session has an image waiting to be sent with the next
+        prompt. Set by ``POST /api/upload-image`` on the RuntimeContext and
+        consumed by ``agent.run()`` (which attaches it to the user message).
+
+        Needed so an image-only turn (empty prompt text, but an attached
+        image) still runs instead of being skipped.
+        """
+        from cheetahclaws import runtime
+        return bool(getattr(runtime.get_session_ctx(self.session_id),
+                            "pending_image", None))
+
     def _run_turn_loop(self, prompt: str):
         """Run ``prompt``, then auto-start new turns from residual steers that
         survived each turn.
@@ -767,9 +779,15 @@ class ChatSession:
         ``run()`` never drained it). Those become the next prompt in the same
         thread — mirroring Claude Code auto-starting a new turn. Steers
         injected mid-run are consumed by ``run()`` and never reach here.
+
+        The loop also runs when the prompt text is empty but an image is
+        pending (an image-only turn): ``agent.run()`` attaches the pending
+        image to the user message so the vision model can process it. Without
+        this, an image-only send runs no turn at all — no events are emitted,
+        the UI spinner never clears, and the model API is never called.
         """
         first_turn = True
-        while prompt:
+        while prompt or self._has_pending_image():
             if not first_turn:
                 # A residual steer auto-started a new turn; signal running so
                 # the UI doesn't flash idle between turns.
@@ -779,8 +797,24 @@ class ChatSession:
             self._cancelled.clear()
             try:
                 self._run_agent(prompt)
-                leftovers = self._agent_state.drain_pending_steers()
-                prompt = leftovers[0] if leftovers else None
+                leftovers = self._agent_state.drain_pending_steers_full()
+                if leftovers:
+                    first = leftovers[0]
+                    prompt = first.get("text") or ""
+                    _resid_img = first.get("image")
+                    if _resid_img:
+                        # Hand the residual steer's image to the next turn:
+                        # run() consumes RuntimeContext.pending_image at its
+                        # top, so set it here for an image-only residual steer.
+                        from cheetahclaws import runtime
+                        runtime.get_session_ctx(
+                            self.session_id).pending_image = _resid_img
+                    # Any further residual steers stay queued for the next
+                    # run() iteration to drain.
+                    for _extra in leftovers[1:]:
+                        self._agent_state.steer(
+                            _extra.get("text") or "",
+                            _extra.get("image"))
             except Exception as exc:
                 self._broadcast(ChatEvent("error", {
                     "message": str(exc),
@@ -791,7 +825,8 @@ class ChatSession:
                 self._busy.clear()
                 self._broadcast(ChatEvent("status", {"state": "idle"}))
 
-    def steer(self, prompt: str) -> bool:
+    def steer(self, prompt: str, image: Optional[str] = None,
+              *, image_type: Optional[str] = None) -> bool:
         """Inject a steer message mid-run (Claude Code "steer" semantics).
 
         If the agent is idle this behaves exactly like submit_prompt() so the
@@ -839,11 +874,13 @@ class ChatSession:
             self._live_msg = None
 
         # Queue for the agent's next API call (top-level run() drains this).
-        self._agent_state.steer(prompt)
+        self._agent_state.steer(prompt, image)
 
         # Acknowledge to clients so they render a steer bubble and the sending
         # client knows it was accepted (the sender does NOT locally render).
-        self._broadcast(ChatEvent("steer_queued", {"text": prompt}))
+        # Echo the image + mime type so the sender can rebuild the data URL.
+        self._broadcast(ChatEvent("steer_queued", {
+            "text": prompt, "image": image, "imageType": image_type}))
         return True
 
     def _handle_slash(self, line: str) -> bool:

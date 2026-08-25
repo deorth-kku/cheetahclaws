@@ -6,7 +6,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Generator
+from typing import Generator, Optional
 
 from cheetahclaws.tool_registry import (
     get_active_tool_names,
@@ -47,20 +47,34 @@ class AgentState:
     turn_count: int = 0
     # Live steer queue consumed at the top of every run() loop iteration.
     # Guarded by _steer_lock so steer() (input thread) and drain_pending_steers()
-    # (agent thread) never race. The list is a small bounded set of short
-    # strings, so a plain list is sufficient.
+    # (agent thread) never race. Each entry is a dict {"text": str,
+    # "image": Optional[str]}; the optional base64 image lets a web UI steer
+    # carry an attached image into the injected user turn. A plain list of
+    # small dicts is sufficient.
     pending_user_turns: list = field(default_factory=list)
     _steer_lock: threading.Lock = field(default_factory=threading.Lock)
 
-    def steer(self, text: str) -> None:
+    def steer(self, text: str, image: Optional[str] = None) -> None:
         """Queue a steer message to be injected as a user turn before the next
-        API call in the current run(). Thread-safe."""
+        API call in the current run(). Thread-safe. ``image`` is an optional
+        base64 image attached to the injected user turn (web UI image steer)."""
         with self._steer_lock:
-            self.pending_user_turns.append(text)
+            self.pending_user_turns.append(
+                {"text": text, "image": image})
 
     def drain_pending_steers(self) -> list[str]:
-        """Pop and return all queued steer messages, clearing the list.
-        Thread-safe."""
+        """Pop and return the text of all queued steer messages, clearing the
+        list. Thread-safe. Text-only view kept for backward compatibility."""
+        with self._steer_lock:
+            if not self.pending_user_turns:
+                return []
+            drained = [e.get("text") or "" for e in self.pending_user_turns]
+            self.pending_user_turns.clear()
+            return drained
+
+    def drain_pending_steers_full(self) -> list[dict]:
+        """Pop and return the full queued steer entries ({text, image}),
+        clearing the list. Thread-safe."""
         with self._steer_lock:
             if not self.pending_user_turns:
                 return []
@@ -204,10 +218,14 @@ def run(
         # the next API request. Top-level only: sub-agents (depth > 0) get
         # their own run() and must not consume the parent's steer queue.
         if depth == 0:
-            for _steer_text in state.drain_pending_steers():
-                state.messages.append({"role": "user", "content": _steer_text})
+            for _steer_entry in state.drain_pending_steers_full():
+                _steer_msg = {"role": "user", "content": _steer_entry.get("text") or ""}
+                _steer_img = _steer_entry.get("image")
+                if _steer_img:
+                    _steer_msg["images"] = [_steer_img]
+                state.messages.append(_steer_msg)
                 if on_steer is not None:
-                    on_steer(_steer_text)
+                    on_steer(_steer_entry.get("text") or "")
         # Re-snapshot from the live config so Behavior-panel edits made via the
         # web UI (permission_mode, thinking, verbose, max_tokens, …) take effect
         # on the very next API call / permission check instead of waiting for the
