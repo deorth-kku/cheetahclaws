@@ -719,6 +719,32 @@ Success criteria:
 
 ---
 
+## 7b. Pending / Deferred Features
+
+Features that have a partial or full implementation but are intentionally parked until
+the right architecture or priority is ready.
+
+- **Live session steer (mid-run user turn injection)**
+  - What: while an agent is streaming, the user can submit an extra user turn that gets
+    injected into the **next** API call (Claude Code-style "steer"). Works in both CLI and
+    web UI.
+  - Status:
+    - **Web UI — shipped.** Backend `ChatSession.steer()`, WS `"steer"` message, and the
+      three-state send button (idle → Send, running + empty → Stop, running + typed → Steer)
+      are implemented. A residual steer left after the final API boundary auto-starts a new
+      turn.
+    - **CLI — deferred.** The core injection point already exists in the agent loop
+      (`AgentState.steer()` / `drain_pending_steers()` at the top of `run()` when
+      `depth == 0`). The CLI REPL blocks its main thread inside the run loop, so true
+      mid-run input capture needs either a background stdin-reader thread (display jank with
+      the current single Rich `Live` frame) or a larger refactor of the interactive REPL.
+      The maintainers preferred not to ship the janky version, so CLI steer is parked.
+  - To resume: add concurrent stdin capture in `cheetahclaws/cli.py` that calls
+    `AgentState.steer()` during interactive runs, plus residual auto-new-turn and
+    slash-command gating to match the web behavior.
+
+---
+
 ## 8. Contribution Priorities
 
 The community should prioritize contributions in this order:
