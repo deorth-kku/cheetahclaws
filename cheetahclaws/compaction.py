@@ -202,8 +202,10 @@ def sanitize_history(messages: list) -> list:
     """
     cleaned: list = []
     pending: set[str] = set()
+    modified = False
 
     def _strip_unanswered():
+        nonlocal modified
         if not pending:
             return
         # Walk back past any trailing tool messages to reach the assistant that owns them.
@@ -230,6 +232,7 @@ def sanitize_history(messages: list) -> list:
             if new_prev.get("content") in (None, ""):
                 new_prev["content"] = ""
         cleaned[target] = new_prev
+        modified = True
 
     for m in messages:
         role = m.get("role")
@@ -238,6 +241,9 @@ def sanitize_history(messages: list) -> list:
             if tid in pending:
                 cleaned.append(m)
                 pending.discard(tid)
+            else:
+                # Orphan tool response — dropped.
+                modified = True
             continue
         _strip_unanswered()
         pending = set()
@@ -248,9 +254,9 @@ def sanitize_history(messages: list) -> list:
         cleaned.append(m)
 
     _strip_unanswered()
-    if len(cleaned) == len(messages):
-        # No orphans removed — return the original list so callers don't
-        # get a new reference that would invalidate llama.cpp KV cache.
+    if not modified:
+        # Nothing removed or stripped — return the original list so callers
+        # don't get a new reference that would invalidate llama.cpp KV cache.
         return messages
     return cleaned
 

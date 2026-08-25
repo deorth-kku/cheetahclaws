@@ -426,7 +426,9 @@ def test_openai_compat_payload_never_contains_cache_control(monkeypatch):
             return iter(())
 
     class _FakeOpenAIClient:
-        def __init__(self, api_key="", base_url=""):
+        def __init__(self, api_key="", base_url="", **kwargs):
+            # **kwargs absorbs default_headers (USER_AGENT) and any other
+            # client options the real OpenAI() accepts.
             self.chat = SimpleNamespace(completions=_FakeCompletions())
 
     fake_mod = SimpleNamespace(OpenAI=_FakeOpenAIClient)

@@ -14,13 +14,36 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from cheetahclaws.prompts import pick_base_prompt
 from cheetahclaws.context import _apply_disabled_tools
 from cheetahclaws.tool_registry import _normalize_disabled
 
 
 def _default() -> str:
-    return pick_base_prompt("kimi/moonshot-v1-128k", "")
+    """Legacy-format prompt with a static tool list + prose sections.
+
+    Upstream moved tool visibility into the dynamic ``Active Tool Surface``
+    rendered by ``build_system_prompt`` (which already excludes disabled
+    tools). The prose filter under test still owns the legacy static-list
+    format, so exercise it with a synthetic prompt in that format rather
+    than coupling to whatever the base prompt file contains today.
+    """
+    return """# Available Tools
+## Core
+- **Read**: Read a file.
+- **Write**: Write a file.
+## Multi-Agent
+- **Agent**: Spawn a sub-agent.
+- **SendMessage**: Send a message to an agent.
+- **CheckAgentResult**: Check an agent's result.
+- **ListAgentTasks**: List agent tasks.
+- **ListAgentTypes**: List agent types.
+
+# Multi-Agent Guidelines
+Use **Agent** to spawn sub-agents and coordinate parallel work.
+
+# Task Management
+- **Workflow:** plan multi-step work.
+"""
 
 
 def test_no_disabled_is_noop():

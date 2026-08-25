@@ -2004,8 +2004,16 @@ def _handle_connection(sock: socket.socket, addr: tuple) -> None:
                     _send_json(sock, _build_safe_config(load_config(), {}),
                                request_origin=origin)
             elif method == "PATCH" and chat_sess:
-                updated = chat_sess.update_config(body_json.get("config", {}))
-                _send_json(sock, updated, request_origin=origin)
+                try:
+                    updated = chat_sess.update_config(body_json.get("config", {}))
+                except ValueError as exc:
+                    _send_http(
+                        sock, "400 Bad Request", "application/json",
+                        json.dumps({"error": str(exc)}).encode(),
+                        request_origin=origin,
+                    )
+                else:
+                    _send_json(sock, updated, request_origin=origin)
             else:
                 _send_http(sock, "404 Not Found", "text/plain",
                            b"session not found", request_origin=origin)

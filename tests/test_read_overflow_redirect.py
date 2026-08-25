@@ -78,56 +78,52 @@ def test_redirect_fires_on_users_actual_failure_case():
 
 
 def test_redirect_fires_on_cjk_at_lower_char_count():
-    """CJK content tokenizes 1:1 with chars, so a 17K-char CJK file is
-    17K tokens — should trigger redirect on a 32K-context model. The
-    same chars in English would NOT trigger (~6K tokens)."""
-    cjk_text = "中文内容测试" * 3000   # ~18K chars CJK
+    """CJK content tokenizes 1:1 with chars, so a 24K-char CJK file is
+    24K tokens — over the 18,737-token ceiling for qwen2.5-72b's
+    registry 32K context. The same chars in English would NOT trigger
+    (~8.5K tokens at chars/2.8)."""
+    cjk_text = "中文内容测试" * 4000   # 24K chars CJK
     redirect_cjk = _maybe_redirect_to_summarize(
         cjk_text, "/tmp/cn.txt", {"model": "custom/qwen2.5-72b"},
     )
     assert redirect_cjk is not None, "CJK content of this size must trigger redirect"
 
     # Same character count in English should NOT trigger
-    eng_text = "abcdef" * 3000   # also 18K chars but English
+    eng_text = "abcdef" * 4000   # also 24K chars but English
     redirect_eng = _maybe_redirect_to_summarize(
         eng_text, "/tmp/en.txt", {"model": "custom/qwen2.5-72b"},
     )
     assert redirect_eng is None, (
-        "Equivalent char-count in English should NOT redirect (chars/2.8 = ~6K tokens, fits)"
+        "Equivalent char-count in English should NOT redirect (chars/2.8 = ~8.5K tokens, fits)"
     )
 
 
-def test_redirect_caps_threshold_for_overconfident_provider():
-    """`custom/...` provider declares 128K context but the underlying
-    model might be 32K. The redirect must use min(ctx, 30K) as ceiling
-    — protect users on small models even when the provider lies."""
-    # 25K-token text. On a 128K-believed model with no cap, this would
-    # NOT trigger (25K << 128K * 0.7). With our 30K cap, it DOES.
-    text = "x" * 70000   # ~25K tokens English
+def test_redirect_fires_on_very_large_file_custom_provider():
+    """No artificial ceiling: the redirect trusts the declared context
+    (custom/ defaults to 256K) and only fires when the file genuinely
+    exceeds 70% of (declared - 6K) — here 175,000 tokens. A ~178K-token
+    file must trigger; the redirect protects the tail of long sessions
+    even on large-context models."""
+    text = "x" * 500000   # ~178K tokens English, over the 175K ceiling
     redirect = _maybe_redirect_to_summarize(
         text, "/tmp/big.txt", {"model": "custom/some-model"},
     )
     assert redirect is not None, (
-        "custom-provider redirect must fire even though declared ctx is 128K"
+        "custom-provider redirect must fire for a file over the safe ceiling"
     )
 
 
 def test_no_redirect_on_genuine_large_context_model_with_modest_file():
-    """A 32K-token file on claude-opus-4-7 (200K context) should NOT
-    redirect — there's plenty of room. We're conservative, not paranoid."""
+    """A ~30K-token file on claude-opus-4-7 (200K context) should NOT
+    redirect — there's plenty of room. No artificial ceiling: the safe
+    ceiling is 0.7*(200K-6K) = 135,800 tokens, so 30K fits with margin.
+    (An earlier 30K cap redirected here too aggressively and contributed
+    to the max_tokens under-cap that truncated replies mid-sentence.)"""
     text = "x" * 84000   # ~30K tokens
-    # claude-opus-4-7 has 200K declared. Our cap is min(200K, 30K) = 30K.
-    # Reservation 6K, ceiling 0.7*(30K-6K) = 16800.
-    # 30K > 16800 → SHOULD redirect (because of the cap).
-    # This actually demonstrates the conservative side-effect: we redirect
-    # even on big-context models. That's intentional: SummarizeLargeFile
-    # is cheap on the small-file path (single-shot), so redirecting
-    # early is harmless even when not strictly needed.
     redirect = _maybe_redirect_to_summarize(
         text, "/tmp/x.txt", {"model": "claude-opus-4-7"},
     )
-    # 30K tokens IS over the 16800 ceiling → redirect fires
-    assert redirect is not None
+    assert redirect is None
 
 
 def test_redirect_message_includes_preview():
@@ -148,9 +144,12 @@ def test_redirect_message_includes_preview():
 
 def test_read_tool_redirects_huge_text_file(tmp_path):
     """Write a fake 'huge' text file, call Read via the tool dispatcher,
-    verify the result is the redirect message (not the raw content)."""
+    verify the result is the redirect message (not the raw content).
+    CJK content: tokenizes 1:1 with chars, so the 50K-char capped read
+    (~50K tokens) clears qwen2.5-72b's 18,737-token ceiling. (Pure
+    English caps at ~17.8K tokens — just under — by design.)"""
     big = tmp_path / "big.txt"
-    big.write_text("Sample line with content. " * 4000, encoding="utf-8")  # ~100KB
+    big.write_text("中文内容测试" * 12000, encoding="utf-8")  # 72K chars / 216KB
 
     # Call via the tool registry (simulates what agent.py does)
     from cheetahclaws.tools import execute_tool
@@ -180,3 +179,24 @@ def test_read_tool_passes_through_small_file(tmp_path):
     )
     assert "ReadTooLarge" not in out
     assert "just a few lines" in out
+
+
+def test_standard_profile_redirects_large_read_to_an_available_follow_up(tmp_path):
+    # CJK content: 1:1 char/token, so the 50K-char capped read (~50K
+    # tokens) clears qwen2.5-72b's 18,737-token ceiling and triggers
+    # the redirect (English content caps just under it).
+    big = tmp_path / "big-cjk.txt"
+    big.write_text("中文内容测试" * 8_000, encoding="utf-8")  # 48K chars / 144KB
+
+    from cheetahclaws.tools import execute_tool
+    out = execute_tool(
+        "Read", {"file_path": str(big)}, permission_mode="accept-all",
+        config={
+            "model": "custom/qwen2.5-72b", "tool_profile": "standard",
+            "_active_tool_names": frozenset({"Read"}),
+        },
+    )
+
+    assert "ReadTooLarge" in out
+    assert "SummarizeLargeFile" not in out
+    assert "narrower `offset` and `limit`" in out

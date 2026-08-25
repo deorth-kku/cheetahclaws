@@ -108,7 +108,7 @@ internal structure.
 | [`tools/`](../cheetahclaws/tools) | All built-in LLM-callable tools.  `tools/__init__.py` holds `TOOL_SCHEMAS`, calls `_register_builtins()`, and imports extension modules.  One file per category: `fs.py`, `shell.py`, `web.py`, `notebook.py`, `diagnostics.py`, `security.py`, `interaction.py`, plus optional `browser.py`, `email.py`, `files.py`. |
 | [`commands/`](../cheetahclaws/commands) | Slash-command handlers.  `core.py` (help/clear/context/cost/…), `config_cmd.py` (model/config/permissions), `session.py` (save/load/resume), `advanced.py` (brainstorm/worker/ssj/memory/agents/skills/mcp/plugin/tasks — `/brainstorm` runs a lead-moderated multi-round adversarial debate; see [`docs/guides/brainstorm.md`](guides/brainstorm.md)), `checkpoint_plan.py` (checkpoint/rewind/plan), `agent_cmd.py` (/agent), `monitor_cmd.py` (subscribe/monitor). |
 | [`bridges/`](../cheetahclaws/bridges) | External messaging adapters: `telegram.py`, `wechat.py`, `slack.py`, plus shared `interactive_session.py` and `terminal_runner.py`. |
-| [`ui/`](../cheetahclaws/ui) | Terminal rendering — `input.py` (prompt_toolkit / readline), `render.py` (rich Markdown, ANSI helpers, spinners, status line). |
+| [`ui/`](../cheetahclaws/ui) | Terminal rendering — `input.py` (prompt_toolkit / readline; slash completion + ghost text), `suggest.py` (auxiliary-model draft of the likely next prompt, pushed into `input.py` as ghost text), `render.py` (rich Markdown, ANSI helpers, spinners, status line). |
 | [`web/`](../cheetahclaws/web) | Optional self-hosted web UI (FastAPI-style — xterm.js frontend, SQLite session store, per-user auth).  Enabled by `[web]` extra. |
 | [`memory/`](../cheetahclaws/memory) | Persistent memory across sessions — `store.py` (CRUD), `scan.py`/`context.py` (index + freshness), `consolidator.py` (`/memory consolidate`), `tools.py` (`MemorySave` / `MemoryDelete` / `MemorySearch` / `MemoryList`). |
 | [`multi_agent/`](../cheetahclaws/multi_agent) | Sub-agent subsystem.  `subagent.py` owns `SubAgentManager` (ThreadPoolExecutor), depth gating, git-worktree isolation; `tools.py` exposes `Agent` / `SendMessage` / `CheckAgentResult` / `ListAgentTasks` / `ListAgentTypes`. |
@@ -307,12 +307,36 @@ based on the model string:
 "ollama/qwen2.5-coder"            → ollama  (explicit prefix)
 "custom/my-endpoint"              → custom
 "nim/meta/llama-3.3-70b-instruct" → nim     (build.nvidia.com free tier)
+"openrouter/deepseek/deepseek-v4-flash" → openrouter  (400+ models, one key)
 ```
 
 `stream(model, system, messages, tool_schemas, config) -> Generator`
 is the one entry point agent.py uses.  Internally it dispatches to
 `stream_anthropic()` (native SDK) or `stream_openai_compat()` (used by
 every OpenAI-compatible provider).
+
+**Gateway model IDs are multi-level.** OpenRouter, NIM and LiteLLM
+address models by an upstream `<vendor>/<model>` path, so only the first
+segment is the provider and `bare_model()` deliberately strips just that
+one.  Two consequences the rest of the file relies on:
+
+* The provider name cannot be re-derived downstream — `bare_model()`'s
+  output (`deepseek/deepseek-v4-flash`) reads as a *different* provider.
+  `stream()` therefore passes the resolved name in `config["_provider_name"]`,
+  and `stream_openai_compat()` reads that instead of re-detecting.
+* Per-model registries (`COSTS`, `_MODEL_CONTEXT_LIMITS`) are keyed by
+  plain model name, so lookups fall back to `lookup_model_key()` — which
+  drops both the vendor path and OpenRouter's optional
+  `@<provider>[/<quantization>]` routing suffix.  Without it a gateway
+  route silently prices at $0 and reads the provider-level context
+  default instead of the model's own.
+
+**OpenRouter provider pinning.** `parse_openrouter_routing()` splits the
+`@<provider>[/<quantization>]` suffix off the model ID and stores it in
+`config["_openrouter_provider"]`; `stream_openai_compat()` forwards it as
+the `provider` object in `extra_body`.  Provider selection is a
+request-body element in OpenRouter's API — glued into the model ID it
+would be rejected as an unknown model.
 
 **NIM 429 cascade.** The `nim` provider points at `build.nvidia.com`'s
 free OpenAI-compatible endpoint with a curated 10-model chain
@@ -536,11 +560,15 @@ multi-user history; the two don't share state today.
 The REPL loop:
 
 1. Read input (via `ui.input.read_input` — prompt_toolkit when
-   available, else readline).
+   available, else readline).  Under prompt_toolkit the prompt also
+   carries ghost text: the predicted next message published by
+   `ui.suggest` (Tab accepts), falling back to shell history.
 2. If it starts with `/`, dispatch via the `COMMANDS` dict.
 3. Otherwise, call `agent.run()` and render the event stream with
    `ui.render`.
-4. After every turn, run checkpoint snapshot (throttled).
+4. After every turn, run checkpoint snapshot (throttled), autosave the
+   session, and — foreground turns only — kick off `ui.suggest.schedule()`
+   on a background thread to draft the next prompt's ghost text.
 5. Handle Ctrl+C (3× within 2 s triggers `os._exit(1)` to escape
    stuck I/O).
 

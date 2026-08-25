@@ -52,10 +52,11 @@ Type `/` and press **Tab** to see all commands with descriptions. Continue typin
 | `/help` | Show all commands |
 | `/clear` | Clear conversation history |
 | `/model` | Show current model + list all available models |
-| `/model <name>` | Switch model (takes effect immediately). Type `/model ` and press **Tab** for a `provider/model` completion picker — one default per provider + a two-level `litellm/<backend>/<model>` tree (PR #166) |
+| `/model <name>` | Switch model (takes effect immediately). Type `/model ` and press **Tab** for a `provider/model` completion picker — one default per provider + a two-level `litellm/<backend>/<model>` tree (PR #166). Gateways keep their upstream path, so only the first segment is the provider: `openrouter/deepseek/deepseek-v4-flash`, optionally `@<provider>[/<quant>]` to pin the upstream (PR #179) |
 | `/config` | Show all current config values |
 | `/config key=value` | Set a config value (persisted to disk). v3.5.78+ parses JSON values: `["a","b"]`, `{"k":"v"}`, signed numbers, quoted strings — list/dict configs no longer get silently saved as literal strings. |
 | `/config context_window=<N>` | Override the context window (tokens) for the session. `0` = use the model's default. Drives the prompt `%` indicator, `/context`, the compaction trigger, **and** the per-call output-token cap — all consistently. Distinct from `max_tokens` (which is the **output** cap, not the window). Bidirectional: a smaller value forces earlier compaction; a larger value corrects a stale default. Read live, so it takes effect on the next prompt (no restart). Warns if set above the model's real window (that would disable compaction and the API may reject oversized prompts). |
+| `/config input_suggest=<bool>` | Turn the [next-prompt ghost text](#next-prompt-ghost-text) on/off (default `true`). When on, the auxiliary model drafts your likely next message after each turn and shows it dim at the prompt; **Tab** accepts it. `CHEETAH_SUGGEST=0` disables it for a single run without touching the saved config. |
 | `/config stream_mode=<mode>` | Force the Markdown streaming tier: `live` (full in-place Rich redraw), `commit` (append-only progressive Markdown — safe over SSH / Apple Terminal / pipes), or `plain` (raw tokens). Unset = auto-detected per device (`ui.render.auto_stream_mode`). Legacy `/config rich_live=true\|false` still works (`true`→`live`, `false`→`commit`). |
 | `/save` | Save session (auto-named by timestamp) |
 | `/save <filename>` | Save session to named file |
@@ -280,12 +281,28 @@ The terminal window/tab title reflects what CheetahClaws is doing — a **pulsin
 
 - **Config:** `terminal_title` (default `true`). Turn it off with `/config terminal_title=false` to leave the shell's own title untouched. Auto-disabled on non-TTYs, pipes, CI, and `TERM=dumb`, so escape bytes never leak into redirected output.
 - **iTerm2 / Terminal.app / most terminals:** works out of the box — they display OSC titles in the tab/title bar by default.
-- **VS Code / Cursor / Windsurf:** these hide program-set titles by default (the tab shows `${process}`). On **first launch** CheetahClaws configures `terminal.integrated.tabs.title` for you — once, with a backup and a re-parse safety check, and never overwriting a value you already set. Reopen the terminal for it to take effect. Run [`/terminal-setup`](#slash-commands-repl) any time to re-apply, or set it by hand:
+- **VS Code / Cursor / Windsurf:** these hide program-set titles by default (the tab shows `${process}`). On **first launch** CheetahClaws configures `terminal.integrated.tabs.title` for you — once per settings target, with a backup and a re-parse safety check, and never overwriting a value you already set. Open a **new** terminal for it to take effect. Run [`/terminal-setup`](#slash-commands-repl) any time to re-apply.
+- **Remote-SSH / WSL / devcontainers / Codespaces:** the window (and its User settings) lives on *your* machine while CheetahClaws runs on the server, so the server-side `~/.config/Code/User/settings.json` is a file the editor never reads. The setup detects the server install and writes the **remote Machine settings** instead — `<server-root>/data/Machine/settings.json`, the "Remote [SSH: host]" scope — which the window does read, so these setups configure themselves too. If neither target is reachable, CheetahClaws prints the one line to paste into the UI machine's settings rather than writing a file that does nothing.
+
+  Set it by hand if you prefer:
 
   ```jsonc
   // VS Code settings.json
   "terminal.integrated.tabs.title": "${sequence}${separator}${process}"
   ```
+
+---
+
+## Next-Prompt Ghost Text
+
+After every foreground turn, the **auxiliary** (cheap/fast) model drafts the one line you are most likely to type next, and it appears **dim/italic in the empty prompt** — the same ghost-text slot the shell-history suggestion uses.
+
+- **Accept it:** **Tab** or **→** inserts it in full. Typing anything else simply types over it, and **Enter on an untouched ghost submits nothing** — it is a hint, never pre-filled input. Type a matching prefix (`run ` for `run the tests`) and Tab completes the rest; erase your line back to empty and the ghost comes back.
+- **What it drafts:** one line, under ~12 words, phrased as *you* (imperative, first-person), in whichever language you have been writing — built from the last ~4 messages of the conversation. Replies that are too long, multi-line, or that start explaining instead of impersonating you are discarded rather than shown.
+- **It never blocks you:** drafting runs on a background daemon thread, so the prompt appears immediately and the ghost shows up when it is ready. Any failure is silent — no auxiliary model, no API key, or a provider outage just means no ghost. A prediction is one-shot (consumed by the prompt it was shown at) and each new turn clears the previous one, so a stale suggestion is never displayed.
+- **Slash commands are unaffected:** while a `/cmd` completion menu is open, Tab still drives the menu.
+- **Config:** `input_suggest` (default `true`). `/config input_suggest=false` disables it persistently; `CHEETAH_SUGGEST=0` disables it for one run. It costs one small [auxiliary-model](#auxiliary-model) call per turn — set `auxiliary_model` to a cheap model if that matters.
+- **Requires `prompt_toolkit`** (a core dependency since v3.5.85). The readline fallback path has no ghost text.
 
 ---
 
@@ -303,6 +320,7 @@ export DASHSCOPE_API_KEY=sk-...      # Qwen
 export ZHIPU_API_KEY=...             # Zhipu GLM
 export DEEPSEEK_API_KEY=sk-...       # DeepSeek
 export MINIMAX_API_KEY=...           # MiniMax
+export OPENROUTER_API_KEY=sk-or-...  # OpenRouter (400+ models, one key)
 ```
 
 #### `.env` file (loaded automatically)
@@ -339,6 +357,7 @@ The env var always wins over any persisted value in `~/.cheetahclaws/config.json
 /config zhipu_api_key=...
 /config deepseek_api_key=sk-...
 /config minimax_api_key=...
+/config openrouter_api_key=sk-or-...
 ```
 
 Keys are saved to `~/.cheetahclaws/config.json` and loaded automatically on next launch.
@@ -365,7 +384,8 @@ Keys are saved to `~/.cheetahclaws/config.json` and loaded automatically on next
   "qwen_api_key": "sk-...",
   "kimi_api_key": "sk-...",
   "deepseek_api_key": "sk-...",
-  "minimax_api_key": "..."
+  "minimax_api_key": "...",
+  "openrouter_api_key": "sk-or-..."
 }
 ```
 
@@ -373,9 +393,11 @@ Keys are saved to `~/.cheetahclaws/config.json` and loaded automatically on next
 
 ## Permission System
 
+The prompt is reserved for actions that can **change your files, run arbitrary code, or reach outside the session**. Everything else runs silently.
+
 | Mode | Behavior |
 |---|---|
-| `auto` (default) | Reads + allow-listed Bash run automatically; prompts before file writes (`Write`/`Edit`) and any other Bash command. |
+| `auto` (default) | Every read-only tool and every read-only shell pipeline runs automatically, as does creating a new file inside the workspace; prompts before overwriting/editing files, running arbitrary commands, and spawning sub-agents. |
 | `accept-edits` | Like `auto`, but also auto-runs file edits (`Write`/`Edit`/`NotebookEdit`); other (non-allow-listed) Bash still prompts. The middle ground between `auto` and `accept-all`. |
 | `accept-all` | Never prompts; all operations proceed automatically. |
 | `manual` | Prompts before every single operation, including reads. |
@@ -386,15 +408,45 @@ A **hard denylist** (`rm -rf /`, `mkfs`, `dd` to a raw disk device, `chmod -R 77
 **When prompted:**
 
 ```
-  Allow: Run: git commit -am "fix bug"  [y/N/a(ccept-all)]
+  Allow: Run: git commit -am "fix bug"  [y/N/s(ession: Bash:git commit)/a(ccept-all)]
 ```
 
 - `y` — approve this one action
 - `n` or Enter — deny
+- `s` — approve **and stop asking for this one thing** for the rest of the session
 - `a` — approve and switch to `accept-all` for the rest of the session
 
-**Commands always auto-approved in `auto` mode:**
-`ls`, `cat`, `head`, `tail`, `wc`, `pwd`, `echo`, `git status`, `git log`, `git diff`, `git show`, `find`, `grep`, `rg`, `python`, `node`, `pip show`, `npm list`, and other read-only shell commands.
+`s` is the scoped alternative to `a`. The grant covers one signature, not the
+whole tool surface: `Bash:git commit` covers any `git commit …` but no other
+`git` subcommand; `Edit:/repo/app.py` covers repeat edits to that one file but
+no other file. Grants live in memory for the session only — never written to
+`config.json` — and `/permissions` lists them, `/permissions clear` drops them.
+
+**Auto-approved in `auto` mode:**
+
+| Category | Examples |
+|---|---|
+| Every tool the registry marks read-only | `Read` · `Glob` · `Grep` · `WebFetch` · `WebSearch` · `GetDiagnostics` · `TaskList` · `MemorySearch` · `SkillList` · `ReadPDF` · `SummarizeLargeFile` … |
+| Session-state tools (no repo file, no shell, no network) | `TaskCreate` · `TaskUpdate` · `MemorySave` · `Skill` · `SleepTimer` |
+| Read-only shell commands **and pipelines of them** | `ls -la \| grep test` · `git log --oneline \| head -20` · `cat` · `wc` · `stat` · `jq` · `rg` · `find` (without `-delete`/`-exec`) · `sed -n` (not `-i`) · `git status/log/diff/show/blame/config --get` · `docker ps` · `kubectl get` · `pip list` · `npm ls` · `curl -I` · any `--version`/`--help` invocation |
+| Creating a **new** file inside the workspace | `Write` to a path that does not exist yet, under the working directory (or `allowed_root`) |
+
+**Still prompts** — overwriting or editing an existing file, writing anywhere
+outside the workspace, any dot-prefixed path (`.git/hooks/*`, `.github/workflows/*`,
+`.env`), interpreters and build/test runners (`python script.py`, `pytest`, `make`,
+`npm run`), anything that writes/deletes/uploads (`rm`, `git push`, `pip install`,
+`curl -o`), shell redirection (`>`), backgrounding (`&`), command substitution
+(`` ` ``, `$(…)`), sub-agent spawns (`Agent`), and any unclassified MCP/plugin tool.
+
+**Tuning it:**
+
+```bash
+/config bash_safe_extra=["bazel-query","./scripts/status"]   # extra read-only programs
+/config auto_create_files=false                              # review new files too
+/permissions accept-edits                                    # stop asking for edits
+/permissions manual                                          # ask for everything
+/permissions clear                                           # drop session grants
+```
 
 ---
 
@@ -596,7 +648,7 @@ Sessions are automatically indexed when saved. Legacy JSON sessions are auto-imp
 
 ## Auxiliary Model
 
-Side tasks like context compression use a fast, cheap model instead of your primary model. This saves cost and speeds up compaction.
+Side tasks like context compression, session titles, and [next-prompt ghost text](#next-prompt-ghost-text) use a fast, cheap model instead of your primary model. This saves cost and speeds up compaction.
 
 **Auto-detection order** (first available wins):
 1. `config["auxiliary_model"]` (if explicitly set)

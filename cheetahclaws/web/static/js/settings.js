@@ -104,6 +104,7 @@ Object.assign(ChatApp.prototype, {
   _renderConfig(cfg) {
     document.getElementById('sp-current-model').textContent = cfg.model || '(not set)';
     document.getElementById('sp-permission').value = cfg.permission_mode || 'auto';
+    document.getElementById('sp-tool-profile').value = cfg.tool_profile || 'full';
     this._setToggle('sp-thinking', cfg.thinking);
     this._setToggle('sp-verbose', cfg.verbose);
     document.getElementById('sp-max-tokens').value = cfg.max_tokens || 40000;

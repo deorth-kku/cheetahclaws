@@ -15,6 +15,7 @@ _register_builtins() which wires all built-ins into the tool registry.
 """
 from __future__ import annotations
 
+import os
 from typing import Callable, Optional
 
 # ── Re-exports (backward compat) ──────────────────────────────────────────
@@ -448,6 +449,16 @@ def execute_tool(
     """Dispatch tool execution; ask permission for write/destructive ops."""
     cfg = config or {}
 
+    # This check must run *before* the registry's read-only cache lookup.  A
+    # cache key can cover normal config values, but it cannot safely encode
+    # ambient authorization such as the filesystem sandbox environment or the
+    # credential-path denylist.  Keep the wrapper check too as defense in depth
+    # for callers that invoke the registry directly.
+    if name == "Read" and inputs.get("file_path"):
+        denied = _check_path_allowed(inputs["file_path"], cfg)
+        if denied:
+            return denied
+
     def _check(desc: str) -> bool:
         if permission_mode == "accept-all":
             return True
@@ -470,7 +481,7 @@ def execute_tool(
             return "Denied: user rejected edit operation"
     elif name == "Bash":
         cmd = inputs.get("command", "") or ""
-        if permission_mode != "accept-all" and not _is_safe_bash(cmd):
+        if permission_mode != "accept-all" and not _is_safe_bash(cmd, cfg):
             if not _check(f"Bash: {cmd or '<missing command>'}"):
                 return "Denied: user rejected bash command"
     elif name == "NotebookEdit":
@@ -496,12 +507,39 @@ def _register_builtins() -> None:
         denied = _check_path_allowed(p["file_path"], c)
         if denied:
             return denied
-        result = _read(**p)
+        result = _read(
+            **p,
+            max_bytes=c.get("tool_read_max_bytes", 256 * 1024),
+            scan_max_bytes=c.get("tool_read_scan_max_bytes", 2 * 1024 * 1024),
+            max_output_chars=c.get("tool_read_max_output_chars", 50_000),
+        )
         # Skip redirect for already-small results (errors, empty, etc.)
         if not result or len(result) < 8000:
             return result
-        from cheetahclaws.tools.files import _maybe_redirect_to_summarize
-        redirect = _maybe_redirect_to_summarize(result, p["file_path"], c)
+        from cheetahclaws.tools.files import (
+            _is_cjk_heavy,
+            _maybe_redirect_to_summarize,
+        )
+        # The read above is budget-bounded, so `result` can be only a
+        # PREFIX of a much larger file. Judge the redirect on the file's
+        # true on-disk size, not the truncated slice — otherwise a 200MB
+        # file looks as small as the 256KB we managed to render and the
+        # redirect silently stops firing.
+        total_chars = None
+        try:
+            real_bytes = os.path.getsize(p["file_path"])
+        except OSError:
+            real_bytes = 0
+        if real_bytes > len(result.encode("utf-8")):
+            # Scale the estimate to the file's real size: CJK ≈ 3 bytes per
+            # char, ASCII ≈ 1 byte per char. The capped sample tells us the
+            # dominant script. (Untruncated reads carry line-number prefix
+            # bytes, so result.encode is LARGER than the file and this
+            # branch stays off — the slice IS the whole file.)
+            total_chars = real_bytes // 3 if _is_cjk_heavy(result) else real_bytes
+        redirect = _maybe_redirect_to_summarize(
+            result, p["file_path"], c, total_chars=total_chars,
+        )
         return redirect if redirect else result
 
     _tool_defs = [
@@ -578,7 +616,11 @@ def _register_builtins() -> None:
             name="WebFetch",
             schema=_schemas["WebFetch"],
             func=lambda p, c: (
-                _webfetch(p["url"], p.get("prompt"))
+                _webfetch(
+                    p["url"], p.get("prompt"),
+                    max_bytes=c.get("web_fetch_max_bytes", 512 * 1024),
+                    max_seconds=c.get("web_fetch_max_seconds", 30),
+                )
                 if isinstance(p.get("url"), str) and p["url"].strip()
                 else "Error: WebFetch requires a non-empty 'url' "
                      "argument (the URL to fetch)."
@@ -589,7 +631,11 @@ def _register_builtins() -> None:
             name="WebSearch",
             schema=_schemas["WebSearch"],
             func=lambda p, c: (
-                _websearch(p["query"])
+                _websearch(
+                    p["query"],
+                    max_bytes=c.get("web_search_max_bytes", 512 * 1024),
+                    max_seconds=c.get("web_search_max_seconds", 30),
+                )
                 if isinstance(p.get("query"), str) and p["query"].strip()
                 else "Error: WebSearch requires a non-empty 'query' "
                      "argument (the search string). Pass it like "

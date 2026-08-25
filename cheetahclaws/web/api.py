@@ -164,12 +164,12 @@ _IDLE_TIMEOUT = 1800  # 30 min before session is considered stale
 _SAFE_CONFIG_KEYS = frozenset({
     "model", "permission_mode", "max_tokens", "verbose", "thinking",
     "thinking_budget", "max_tool_output", "max_agent_depth",
-    "shell_policy", "log_level",
+    "shell_policy", "log_level", "tool_profile",
 })
 
 _WRITABLE_CONFIG_KEYS = frozenset({
     "model", "permission_mode", "verbose", "thinking",
-    "thinking_budget", "max_tokens",
+    "thinking_budget", "max_tokens", "tool_profile",
     # API keys — written to session config only, not persisted to disk
     "anthropic_api_key", "openai_api_key", "gemini_api_key",
     "kimi_api_key", "qwen_api_key", "zhipu_api_key",
@@ -1455,8 +1455,16 @@ class ChatSession:
 
     def update_config(self, updates: dict) -> dict:
         from cheetahclaws.config import load_config, DEFAULTS
+        if not isinstance(updates, dict):
+            raise ValueError("Config update must be an object.")
+        normalized_profile = None
+        if "tool_profile" in updates:
+            from cheetahclaws.tool_registry import normalize_tool_profile
+            normalized_profile = normalize_tool_profile(updates["tool_profile"])
         for k, v in updates.items():
             if k in _WRITABLE_CONFIG_KEYS:
+                if k == "tool_profile":
+                    v = normalized_profile
                 self.config[k] = v
         # Persist only the *override delta* vs the live server config, so the
         # DB never clobbers later config-file changes.  A key is dropped from

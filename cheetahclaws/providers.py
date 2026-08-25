@@ -9,6 +9,7 @@ Supported providers:
   qwen       — Alibaba DashScope (qwen-max, qwen-plus, ...)
   zhipu      — Zhipu GLM (glm-4, glm-4-plus, ...)
   deepseek   — DeepSeek (deepseek-v4-flash, deepseek-v4-pro, deepseek-chat, deepseek-reasoner)
+  openrouter — OpenRouter (openrouter/deepseek/deepseek-v4-flash, ...)
   minimax    — MiniMax (MiniMax-Text-01, abab6.5s-chat, ...)
   ollama     — Local Ollama (llama3.3, qwen2.5-coder, ...)
   lmstudio   — Local LM Studio (any loaded model)
@@ -19,6 +20,13 @@ Model string formats:
   "gpt-4o"                   auto-detected → openai
   "ollama/qwen2.5-coder"     explicit provider prefix
   "custom/my-model"          uses CUSTOM_BASE_URL from config
+  "openrouter/<vendor>/<model>"  multi-level path: the first segment is the
+  provider, everything after it is passed through as the upstream model ID
+  (e.g. "openrouter/deepseek/deepseek-v4-flash"). Also used by nim/ and litellm/.
+  "openrouter/<vendor>/<model>@<provider>[/<quant>]"  optional routing suffix:
+  pins the secondary OpenRouter provider (and quantization level) via the
+  `provider` request body, keeping the model field a real model ID.
+  (e.g. "openrouter/deepseek/deepseek-v4-flash@gmicloud/fp8").
 """
 from __future__ import annotations
 import json
@@ -106,6 +114,32 @@ PROVIDERS: dict[str, dict] = {
         "models": [
             "deepseek-v4-pro", "deepseek-v4-flash",
             "deepseek-chat", "deepseek-coder", "deepseek-reasoner",
+        ],
+    },
+    # OpenRouter — 400+ models from many vendors behind one OpenAI-compatible
+    # endpoint. Get a key at https://openrouter.ai/keys. Model IDs keep the
+    # upstream <vendor>/<model> path, so use the double-prefixed form
+    #   /model openrouter/deepseek/deepseek-v4-flash
+    # The first segment is the provider; the rest is passed through verbatim.
+    # To force a secondary provider / quantization, append "@<slug>[/<quant>]"
+    # (e.g. openrouter/deepseek/deepseek-v4-flash@gmicloud/fp8) — it is sent as
+    # the `provider` request body, not glued into the model ID.
+    "openrouter": {
+        "type":       "openai",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "base_url":   "https://openrouter.ai/api/v1",
+        "context_limit": 128000,
+        "max_completion_tokens": 16384,
+        "models": [
+            "deepseek/deepseek-v4-flash",
+            "deepseek/deepseek-v4-pro",
+            "deepseek/deepseek-chat",
+            "anthropic/claude-sonnet-4-6",
+            "openai/gpt-5",
+            "google/gemini-2.5-pro",
+            "meta-llama/llama-3.3-70b-instruct",
+            "qwen/qwen3-235b-a22b",
+            "mistralai/mistral-large-latest",
         ],
     },
     "minimax": {
@@ -297,6 +331,62 @@ def detect_provider(model: str) -> str:
 def bare_model(model: str) -> str:
     """Strip 'provider/' prefix if present."""
     return model.split("/", 1)[1] if "/" in model else model
+
+
+def lookup_model_key(model: str) -> str:
+    """Return the per-model registry key for any model string.
+
+    Gateway providers (openrouter/, nim/, litellm/, custom/) keep the upstream
+    ``<vendor>/<model>`` path, and OpenRouter adds an optional
+    ``@<provider>[/<quant>]`` routing suffix.  Neither belongs in a *model*
+    lookup, so registries keyed by plain model name (COSTS,
+    _MODEL_CONTEXT_LIMITS) miss and silently fall back to a default — $0.00
+    for a billed gateway, or the wrong context window.
+
+      "openrouter/anthropic/claude-sonnet-4-6"             → "claude-sonnet-4-6"
+      "openrouter/deepseek/deepseek-v4-flash@gmicloud/fp8" → "deepseek-v4-flash"
+      "gpt-4o"                                             → "gpt-4o"
+    """
+    return model.partition("@")[0].rsplit("/", 1)[-1]
+
+
+# Quantization levels OpenRouter accepts in provider.quantizations.
+_OR_QUANTIZATIONS = frozenset({"fp4", "fp8", "int4", "int8"})
+
+
+def parse_openrouter_routing(model_id: str) -> tuple[str, dict | None]:
+    """Split an OpenRouter model string into (model ID, provider-routing body).
+
+    OpenRouter model IDs are always the upstream ``<vendor>/<model>`` path,
+    e.g. ``deepseek/deepseek-v4-flash``. Provider selection and quantization
+    are *request-body* elements (the ``provider`` object), not part of the
+    model ID — gluing them in ("gmicloud/fp8") makes OpenRouter reject the
+    request as an unknown model. To pin the secondary provider (and optionally
+    a quantization level), append ``@<provider-slug>[/<quantization>]`` to the
+    real model ID:
+
+      openrouter/deepseek/deepseek-v4-flash              → model only
+      openrouter/deepseek/deepseek-v4-flash@gmicloud     → provider.order=["gmicloud"]
+      openrouter/deepseek/deepseek-v4-flash@gmicloud/fp8 → + provider.quantizations=["fp8"]
+      openrouter/deepseek/deepseek-v4-flash@fp8          → quantizations only
+
+    Returns (clean model ID, provider body dict or None). ``@`` never appears
+    in OpenRouter catalog IDs, so the suffix is unambiguous with plain
+    passthrough.
+    """
+    model_id, _, routing = model_id.partition("@")
+    if not routing:
+        return model_id, None
+    parts = routing.split("/")
+    body: dict = {}
+    if parts[0] in _OR_QUANTIZATIONS:
+        body["quantizations"] = parts
+    else:
+        body["order"] = [parts[0]]
+        body["allow_fallbacks"] = False
+        if len(parts) > 1:
+            body["quantizations"] = parts[1:]
+    return model_id, body
 
 
 def nim_next_model(current: str) -> str | None:
@@ -600,17 +690,36 @@ def get_model_context_window(provider: str, model: str,
       3. Provider-level PROVIDERS[provider]['context_limit']
       4. Fallback 128000
     """
-    bare = bare_model(model)
-    if bare in _MODEL_CONTEXT_LIMITS:
-        return _MODEL_CONTEXT_LIMITS[bare]
-    bare_lc = bare.lower()
-    for k, v in _MODEL_CONTEXT_LIMITS.items():
-        if bare_lc.startswith(k.lower()):
-            return v
+    # Two candidates: the provider-stripped ID, and — for gateway routes that
+    # keep an upstream <vendor>/<model> path (openrouter/, nim/, custom/) — the
+    # bare model name.  Without the second, every openrouter/* model fell
+    # through to the provider-level 128000 default regardless of its real
+    # window: too-late compaction on a 32k model, too-early on a 1M one.
+    candidates = [bare_model(model)]
+    key = lookup_model_key(model)
+    if key != candidates[0]:
+        candidates.append(key)
+    for cand in candidates:
+        if cand in _MODEL_CONTEXT_LIMITS:
+            return _MODEL_CONTEXT_LIMITS[cand]
+        cand_lc = cand.lower()
+        for k, v in _MODEL_CONTEXT_LIMITS.items():
+            if cand_lc.startswith(k.lower()):
+                return v
     if provider == "custom" and base_url:
         live = _fetch_custom_model_limit(base_url, model, api_key)
         if live:
             return live
+    # Gateway route whose vendor segment names a provider we know natively
+    # ("openrouter/anthropic/claude-…" → anthropic): that vendor's window is a
+    # far better estimate than the gateway's one-size-fits-all default, which
+    # is necessarily generic across a 400-model catalog.
+    upstream = candidates[0]
+    vendor = upstream.split("/", 1)[0] if "/" in upstream else ""
+    if vendor and vendor != provider:
+        vendor_ctx = PROVIDERS.get(vendor, {}).get("context_limit")
+        if vendor_ctx:
+            return vendor_ctx
     prov_ctx = PROVIDERS.get(provider, {}).get("context_limit")
     if prov_ctx:
         return prov_ctx
@@ -744,7 +853,12 @@ def calc_cost(model: str, in_tok: int, out_tok: int,
     input_tokens, priced at 0.1x (read) / 1.25x (write) of the input rate —
     omitting them would silently under-report spend once prompt caching is
     active."""
-    ic, oc = COSTS.get(bare_model(model), (0.0, 0.0))
+    # Try the provider-stripped ID first ("meta/llama-3.3-70b-instruct" for
+    # nim/), then the bare model name — the latter is what prices gateway
+    # routes like openrouter/deepseek/deepseek-v4-flash, which would otherwise
+    # report $0.00 and sail straight past the cost budget in
+    # quota.record_usage.
+    ic, oc = COSTS.get(bare_model(model)) or COSTS.get(lookup_model_key(model), (0.0, 0.0))
     cache = (cache_read_tok * 0.1 + cache_write_tok * 1.25) * ic
     return (in_tok * ic + out_tok * oc + cache) / 1_000_000
 
@@ -1571,34 +1685,51 @@ def stream_openai_compat(
         # "auto" requires vLLM --enable-auto-tool-choice; omit if server doesn't support it
         if not config.get("disable_tool_choice"):
             kwargs["tool_choice"] = "auto"
-    
-    # the model from args is bare model now. use config model to detect provider
-    conf_model=config.get("model") or model
-    _prov = detect_provider(conf_model)
+    # OpenRouter: forward pinned provider routing (order / quantizations) as a
+    # request-body element so the model field stays a real OpenRouter model ID.
+    _or_prov = config.get("_openrouter_provider")
+    if _or_prov:
+        kwargs.setdefault("extra_body", {})["provider"] = _or_prov
+    # `model` here already has the provider prefix stripped, so re-detecting
+    # from it mis-reads gateway routes: "deepseek/deepseek-v4-flash" is an
+    # *OpenRouter* model ID but resolves to the deepseek provider, which then
+    # injects DeepSeek-only request fields (extra_body.thinking,
+    # reasoning_effort) and applies DeepSeek's caps instead of OpenRouter's.
+    # stream() passes the real provider via _provider_name; detect_provider
+    # stays the fallback for direct callers (tests, embedders).
+    _prov = config.get("_provider_name") or detect_provider(model)
+    # The `model` arg is bare (prefix stripped); config carries the full
+    # model ID used for per-model context-window / max-token lookups.
+    conf_model = config.get("model") or model
 
     # Thinking is tri-state in DEFAULTS (config.py):
     #   None  = unset (let provider default stand — ON for DeepSeek v4)
     #   True  = explicit ON  (user toggled via /thinking or --thinking)
     #   False = explicit OFF (inject disable)
     # `is False` is intentional: distinguishes explicit False from None.
-    if config.get("thinking") is False:
-        kwargs.setdefault("extra_body", {})["thinking"] = {"type": "disabled"}
-    elif config.get("thinking") is True and _prov != "openai":
-        # Official OpenAI chat.completions never returns CoT, and unknown
-        # thinking fields can 400 — skip that provider.  For OpenAI-compat
-        # backends (vLLM / SGLang / Qwen / DeepSeek / custom), enable the
-        # common request knobs other harnesses use so thinking traces are
-        # actually produced, not just parsed.
-        body = kwargs.setdefault("extra_body", {})
-        body.setdefault("thinking", {"type": "enabled"})
-        body.setdefault("enable_thinking", True)
-        ctk = body.setdefault("chat_template_kwargs", {})
-        if isinstance(ctk, dict):
-            ctk.setdefault("thinking", True)
-            ctk.setdefault("enable_thinking", True)
-    eff = config.get("reasoning_effort")
-    if eff:
-        kwargs["reasoning_effort"] = eff
+    # OpenRouter gateway routes are skipped entirely: the request goes to
+    # openrouter.ai, which does not understand DeepSeek-only fields
+    # (extra_body.thinking / reasoning_effort) even when the upstream
+    # vendor segment reads "deepseek".
+    if _prov != "openrouter":
+        if config.get("thinking") is False:
+            kwargs.setdefault("extra_body", {})["thinking"] = {"type": "disabled"}
+        elif config.get("thinking") is True and _prov != "openai":
+            # Official OpenAI chat.completions never returns CoT, and unknown
+            # thinking fields can 400 — skip that provider.  For OpenAI-compat
+            # backends (vLLM / SGLang / Qwen / DeepSeek / custom), enable the
+            # common request knobs other harnesses use so thinking traces are
+            # actually produced, not just parsed.
+            body = kwargs.setdefault("extra_body", {})
+            body.setdefault("thinking", {"type": "enabled"})
+            body.setdefault("enable_thinking", True)
+            ctk = body.setdefault("chat_template_kwargs", {})
+            if isinstance(ctk, dict):
+                ctk.setdefault("thinking", True)
+                ctk.setdefault("enable_thinking", True)
+        eff = config.get("reasoning_effort")
+        if eff:
+            kwargs["reasoning_effort"] = eff
        
     _effective_mt = resolve_max_tokens(config, _prov, conf_model, base_url, api_key)
     if _effective_mt:
@@ -2087,6 +2218,18 @@ def stream(
     provider_name = detect_provider(model)
     model_name    = bare_model(model)
     prov          = PROVIDERS.get(provider_name, PROVIDERS["openai"])
+    # OpenRouter: peel the optional "@provider[/quantization]" routing suffix
+    # off the upstream model ID. Provider selection is a request-body element
+    # (the `provider` object), never part of the model ID — see
+    # parse_openrouter_routing.
+    if provider_name == "openrouter":
+        model_name, or_routing = parse_openrouter_routing(model_name)
+        if or_routing:
+            config = {**config, "_openrouter_provider": or_routing}
+    # Downstream helpers get `model_name` with the provider prefix already
+    # stripped and cannot re-derive the provider for multi-level IDs
+    # (openrouter/, nim/, custom/), so pass it explicitly.
+    config        = {**config, "_provider_name": provider_name}
     api_key       = get_api_key(provider_name, config)
     session_id    = config.get("_session_id", "default")
 
