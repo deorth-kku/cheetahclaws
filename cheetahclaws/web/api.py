@@ -788,6 +788,12 @@ class ChatSession:
         """
         first_turn = True
         while prompt or self._has_pending_image():
+            # Respect a Stop request: abort before re-running so the Stop
+            # button actually stops instead of auto-starting another turn.
+            # Without this, _cancelled (set by request_stop()) gets cleared
+            # below and the same prompt is re-sent forever.
+            if self._cancelled.is_set():
+                break
             if not first_turn:
                 # A residual steer auto-started a new turn; signal running so
                 # the UI doesn't flash idle between turns.
@@ -815,6 +821,12 @@ class ChatSession:
                         self._agent_state.steer(
                             _extra.get("text") or "",
                             _extra.get("image"))
+                else:
+                    # No residual steer queued after this turn's final API
+                    # call: the loop has nothing new to run, so clear the
+                    # prompt and exit. Otherwise the (unchanged) prompt would
+                    # keep re-sending the same message on every completion.
+                    prompt = None
             except Exception as exc:
                 self._broadcast(ChatEvent("error", {
                     "message": str(exc),
