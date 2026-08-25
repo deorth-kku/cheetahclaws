@@ -24,6 +24,11 @@ Object.assign(ChatApp.prototype, {
   },
 
   _scrollBottom() {
+    // While steers are queued (dimmed, not-yet-effective) they must always
+    // sit at the very bottom — below any assistant output streaming in right
+    // now. Re-pinning here (the chokepoint every render calls) keeps them
+    // anchored to the bottom until `steer_applied` finalizes + locks them.
+    if (typeof this._keepSteersAtBottom === 'function') this._keepSteersAtBottom();
     const el = document.getElementById('messages');
     requestAnimationFrame(() => { el.scrollTop = el.scrollHeight; });
   },

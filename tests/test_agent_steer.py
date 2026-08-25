@@ -203,3 +203,42 @@ def test_multiple_steers_drained_in_order(monkeypatch):
     steer_msgs = [m["content"] for m in state.messages
                   if m["role"] == "user" and m["content"] != "hello"]
     assert steer_msgs == ["one", "two", "three"]
+
+
+def test_on_steer_fired_at_injection_point(monkeypatch):
+    """The on_steer callback must fire once per injected steer, carrying the
+    steer text, so the web UI can mark the moment a mid-run steer actually
+    takes effect (before the API call that includes it)."""
+    tool_call = _turn(tool_calls=[{
+        "id": "t1", "name": "WebFetch",
+        "input": {"url": "https://example.test"},
+    }])
+    text_turn = _turn(text="final answer")
+    state = AgentState()
+    seen_steers = []
+    idx = {"i": -1}
+
+    def fake_stream(**kwargs):
+        idx["i"] += 1
+        if idx["i"] == 0:
+            state.steer("go left")
+            state.steer("also check logs")
+        yield tool_call if idx["i"] == 0 else text_turn
+
+    def on_steer(text):
+        seen_steers.append(text)
+
+    monkeypatch.setattr(agent, "stream", fake_stream)
+    list(run("hello", state, _config(), "system", on_steer=on_steer))
+
+    # Both steers fired, in FIFO order, exactly once each.
+    assert seen_steers == ["go left", "also check logs"]
+
+
+def test_on_steer_none_is_safe(monkeypatch):
+    """run() must work without an on_steer callback (CLI path)."""
+    monkeypatch.setattr(agent, "stream",
+                        lambda **kw: iter([_turn(text="done")]))
+    state = AgentState()
+    state.steer("ignored")  # drained but no callback -> no crash
+    list(run("hello", state, _config(), "system"))

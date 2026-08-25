@@ -625,6 +625,13 @@ class ChatSession:
         except Exception:
             pass
 
+    def _on_steer(self, text: str) -> None:
+        """Signal the moment a mid-run steer is actually injected into the
+        agent's next API call. The web UI listens for this to move the
+        (momentarily dimmed) steer bubble to the position where it took effect
+        and restore it to a normal, bright user-message styling."""
+        self._broadcast(ChatEvent("steer_applied", {"text": text}))
+
     # ── Subscriber management ──────────────────────────────────────────
 
     def subscribe(self) -> queue.Queue:
@@ -1309,7 +1316,8 @@ class ChatSession:
         try:
             for event in run(prompt, self._agent_state, self.config,
                              system_prompt, cancel_check=self._cancelled.is_set,
-                             on_compact=self._on_compact):
+                             on_compact=self._on_compact,
+                             on_steer=self._on_steer):
                 if isinstance(event, TextChunk):
                     if event.kind:
                         # System / retry diagnostic (kind="notice"/"error").

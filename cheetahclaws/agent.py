@@ -124,6 +124,7 @@ def run(
     depth: int = 0,
     cancel_check=None,
     on_compact=None,
+    on_steer=None,
 ) -> Generator:
     """
     Multi-turn agent loop (generator).
@@ -135,6 +136,9 @@ def run(
         cancel_check: callable returning True to abort the loop early
         on_compact: optional callback persisted through to compaction so
             callers can persist the compacted history
+        on_steer: optional callback invoked once per steer text as it is
+            injected before an API call, so callers (e.g. the web UI) can
+            signal the moment a mid-run steer actually takes effect
     """
     # Append user turn in neutral format
     user_msg = {"role": "user", "content": user_message}
@@ -202,6 +206,8 @@ def run(
         if depth == 0:
             for _steer_text in state.drain_pending_steers():
                 state.messages.append({"role": "user", "content": _steer_text})
+                if on_steer is not None:
+                    on_steer(_steer_text)
         # Re-snapshot from the live config so Behavior-panel edits made via the
         # web UI (permission_mode, thinking, verbose, max_tokens, …) take effect
         # on the very next API call / permission check instead of waiting for the

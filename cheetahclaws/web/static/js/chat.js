@@ -27,6 +27,11 @@ class ChatApp {
     this._sessions = [];        // last fetched list (for search filter)
     this._user = null;
     this._pendingImage = null;  // {name, dataUrl, b64} awaiting next prompt
+    // Steer bubbles submitted mid-run start dimmed (not-yet-effective). They
+    // stay pinned to the bottom (see _keepSteersAtBottom) until the backend
+    // confirms the steer was injected (`steer_applied`), at which point each
+    // is finalized: locked into its effective position and brightened.
+    this._pendingSteers = [];   // dimmed steer bubbles awaiting finalization
   }
 
   // ── Image attachment ───────────────────────────────────────────
@@ -463,11 +468,32 @@ class ChatApp {
         this._appendNotice(evt.data.text || '', evt.data.kind || '');
         break;
       case 'steer_queued':
-        // A steer submitted mid-run. Render it as a user bubble (marked) so
-        // the sender sees it was accepted; the agent injects it before its
-        // next API call and streams the response as usual.
+        // A steer submitted mid-run. Render it as a dimmed user bubble so
+        // the sender sees it was accepted; it stays dimmed until the backend
+        // confirms the steer was actually injected (steer_applied), at which
+        // point it is moved to that position and brightened into a normal
+        // user message.
         this._removeActivity();
         this._addUserSteerBubble(evt.data.text || '');
+        break;
+      case 'steer_applied':
+        // The backend just injected the earliest pending steer into the next
+        // API call. Finalize the matching bubble: keep it where it took
+        // effect (after all output streamed before the injection point) and
+        // restore normal user-message styling. Closing the live assistant
+        // stream here means the model's continued output opens a fresh bubble
+        // BELOW the steer — matching the reload ordering
+        // assistant(partial) → user(steer) → assistant(continued).
+        this._removeActivity();
+        // Only reset the live assistant stream if a steer was actually
+        // finalized on THIS client, so a steer submitted by another viewer
+        // doesn't split our own reply into two bubbles.
+        if (this._finalizePendingSteer()) {
+          this._thinkEl = null;
+          this._thinkBuf = '';
+          this._curMsgEl = null;
+          this._textBuf = '';
+        }
         break;
       case 'tool_start':
         this._removeActivity();
@@ -515,6 +541,10 @@ class ChatApp {
           // history, but we drop the reference so a new block is created.
           this._thinkEl = null;
           this._thinkBuf = '';
+          // A steer that survived the previous turn (drained as this turn's
+          // prompt) never got a `steer_applied` event — finalize it now so it
+          // brightens into a normal user message at the end of history.
+          this._processPendingSteers();
           this._showActivity('', 'Processing', '');
         } else if (evt.data.state === 'idle') {
           this._removeActivity();
@@ -558,6 +588,7 @@ class ChatApp {
     this._toolCounter = 0; this._approvalEl = null;
     this._pendingApproval = false;
     this._askEl = null; this._pendingAsk = false;
+    this._pendingSteers = [];
   }
 
   _addUserBubble(text, img) {
@@ -578,16 +609,54 @@ class ChatApp {
     this._scrollBottom();
   }
 
-  // Render a steer message the user injected mid-run. Marked distinctly so
-  // it's clear it was queued while the agent was already working.
+  // Render a steer message the user injected mid-run. Marked distinctly (dim)
+  // so it's clear it was queued while the agent was already working. It stays
+  // dimmed and pinned to the bottom (see _keepSteersAtBottom) until `steer_applied`
+  // finalizes it (see _finalizePendingSteer).
   _addUserSteerBubble(text) {
     if (!text || !text.trim()) return;
     const el = document.createElement('div');
     el.className = 'msg user steer';
     el.innerHTML = `<div class="role-tag">Steered</div><div class="bubble"></div>`;
     el.querySelector('.bubble').appendChild(document.createTextNode(text));
+    this._pendingSteers.push(el);
     document.getElementById('messages').appendChild(el);
     this._scrollBottom();
+  }
+
+  // Keep every not-yet-effective (dimmed) steer pinned at the very bottom of
+  // the thread, below any assistant output streaming in right now. Called from
+  // _scrollBottom after each render. Once a steer is finalized it is removed
+  // from _pendingSteers and stops being re-pinned (it locks into place).
+  _keepSteersAtBottom() {
+    const container = document.getElementById('messages');
+    if (!this._pendingSteers.length || !container) return;
+    for (const el of this._pendingSteers) container.appendChild(el);
+  }
+
+  // Finalize the oldest pending (dimmed) steer bubble: move it to the
+  // position where it actually took effect and restore normal user-message
+  // styling. Returns true if a steer was finalized, false when none pending.
+  _finalizePendingSteer() {
+    const el = this._pendingSteers.shift();
+    if (!el) return false;
+    const container = document.getElementById('messages');
+    // Lock into the effective position: the bottom, i.e. directly below all
+    // partial output streamed before the steer was injected. (It is already
+    // there thanks to _keepSteersAtBottom; appendChild just guarantees it.)
+    container.appendChild(el);
+    // Brighten back into a normal user message.
+    el.classList.remove('steer');
+    const tag = el.querySelector('.role-tag');
+    if (tag) tag.textContent = 'You';
+    this._scrollBottom();
+    return true;
+  }
+
+  // Finalize every remaining pending steer (used when a new turn starts and a
+  // steer was drained as its prompt, so it never received `steer_applied`).
+  _processPendingSteers() {
+    while (this._pendingSteers.length) this._finalizePendingSteer();
   }
 
   _addAssistantBubble(content) {
