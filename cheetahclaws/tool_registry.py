@@ -287,7 +287,11 @@ def get_profile_tool_names(
     if active_profile == "full":
         names.update(_registry)
     disabled = _normalize_disabled(disabled_tools)
-    names.difference_update(n for n in names if n.strip().lower() in disabled)
+    # Materialize the removal set *before* mutating ``names`` — a generator
+    # iterated inside difference_update mutates the set during iteration and
+    # raises "Set changed size during iteration".
+    to_remove = {n for n in names if n.strip().lower() in disabled}
+    names.difference_update(to_remove)
     return frozenset(names)
 
 
